@@ -28,6 +28,32 @@ function createMarkerIcon(color: string, label: string): L.DivIcon {
   });
 }
 
+function createPoiIcon(category: string): L.DivIcon {
+  const icons: Record<string, string> = {
+    restaurant: '🍽️',
+    fuel: '⛽',
+    cafe: '☕',
+    hotel: '🏨',
+    attraction: '🎡',
+    parking: '🅿️',
+  };
+
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="
+        width:32px;height:32px;border-radius:50%;
+        background:#f59e0b;border:3px solid #fff;
+        box-shadow:0 2px 6px rgba(0,0,0,.4);
+        display:flex;align-items:center;justify-content:center;
+        font-size:16px;
+      ">${icons[category] || '📍'}</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -34],
+  });
+}
+
 const START_COLOR = '#22c55e';  // green
 const END_COLOR = '#ef4444';    // red
 const VIA_COLOR = '#3b82f6';    // blue
@@ -160,11 +186,18 @@ export default function MapComponent({
 
     // Add or update markers
     waypoints.forEach((wp, index) => {
-      const isFirst = index === 0;
-      const isLast = index === waypoints.length - 1;
-      const color = isFirst ? START_COLOR : isLast ? END_COLOR : VIA_COLOR;
-      const label = isFirst ? 'S' : isLast ? 'E' : String(index);
-      const icon = createMarkerIcon(color, label);
+      const isPoi = wp.type === 'poi';
+      let icon: L.DivIcon;
+
+      if (isPoi) {
+        icon = createPoiIcon(wp.poiCategory || 'unknown');
+      } else {
+        const isFirst = index === 0;
+        const isLast = index === waypoints.length - 1;
+        const color = isFirst ? START_COLOR : isLast ? END_COLOR : VIA_COLOR;
+        const label = isFirst ? 'S' : isLast ? 'E' : String(index);
+        icon = createMarkerIcon(color, label);
+      }
 
       const existing = markersRef.current.get(wp.id);
       if (existing) {
@@ -173,13 +206,15 @@ export default function MapComponent({
       } else {
         const marker = L.marker([wp.lat, wp.lng], {
           icon,
-          draggable: true,
+          draggable: !isPoi, // POI's niet draggable maken
         });
 
-        marker.on('dragend', () => {
-          const { lat, lng } = marker.getLatLng();
-          onWaypointDragRef.current(wp.id, lat, lng);
-        });
+        if (!isPoi) {
+          marker.on('dragend', () => {
+            const { lat, lng } = marker.getLatLng();
+            onWaypointDragRef.current(wp.id, lat, lng);
+          });
+        }
 
         marker.on('contextmenu', (e) => {
           L.DomEvent.stopPropagation(e);

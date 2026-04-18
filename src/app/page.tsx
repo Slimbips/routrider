@@ -84,10 +84,10 @@ function PlannerContent() {
 
   // --- Waypoint management ---
 
-  const addWaypoint = useCallback((lat: number, lng: number, name?: string) => {
+  const addWaypoint = useCallback((lat: number, lng: number, name?: string, type?: 'waypoint' | 'poi', poiCategory?: string) => {
     setWaypoints((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), lat, lng, name },
+      { id: crypto.randomUUID(), lat, lng, name, type: type || 'waypoint', poiCategory },
     ]);
     setRouteResult(null);
     setError(null);

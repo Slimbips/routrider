@@ -12,7 +12,7 @@ interface RoutePanelProps {
   routeResult: RouteResult | null;
   isCalculating: boolean;
   error: string | null;
-  onAddWaypoint: (lat: number, lng: number, name?: string) => void;
+  onAddWaypoint: (lat: number, lng: number, name?: string, type?: 'waypoint' | 'poi', poiCategory?: string) => void;
   onRemoveWaypoint: (id: string) => void;
   onMoveWaypoint: (fromIndex: number, toIndex: number) => void;
   onPreferencesChange: (p: RoutePreferences) => void;
@@ -131,7 +131,7 @@ export default function RoutePanel({
   };
 
   const handleAddPoi = (poi: PoiResult) => {
-    onAddWaypoint(poi.lat, poi.lng, poi.name);
+    onAddWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category);
     setPoiResults([]); // clear results after adding
   };
 
