@@ -425,7 +425,11 @@ export default function RoutePanel({
                 </div>
                 <div className="flex items-center gap-1.5 text-gray-700">
                   <span>⏱</span>
-                  <span className="font-semibold">{formatDuration(routeResult.duration)}</span>
+                  <span className="font-semibold">
+                    {preferences.vehicleProfile === 'cycling-mountain'
+                      ? formatDuration(routeResult.duration / 3)
+                      : formatDuration(routeResult.duration)}
+                  </span>
                 </div>
                 {routeResult.ascent !== undefined && (
                   <div className="flex items-center gap-1.5 text-gray-700">
