@@ -50,6 +50,13 @@ export default function AddressInput({
     debounceRef.current = setTimeout(() => fetchSuggestions(v), 350);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && suggestions.length > 0) {
+      e.preventDefault();
+      handleSelect(suggestions[0]);
+    }
+  };
+
   const handleSelect = (s: GeocodeSuggestion) => {
     const label = s.name.split(',')[0].trim();
     setInputValue('');
@@ -75,6 +82,7 @@ export default function AddressInput({
         type="text"
         value={inputValue}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         placeholder={placeholder}
         className="

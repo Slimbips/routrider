@@ -69,12 +69,6 @@ export default function RoutePanel({
       prefs: { style: 'fastest', avoidHighways: false, avoidMotorways: false, avoidFerries: false, avoidTollways: false, avoidUnpaved: true },
     },
     {
-      id: 'toeristisch',
-      label: '🌄 Toeristisch',
-      title: 'Toeristisch — vermijdt alle snelwegen, autowegen en tol. Rijdt via kleine wegen.',
-      prefs: { style: 'recommended', avoidHighways: true, avoidMotorways: true, avoidFerries: false, avoidTollways: true, avoidUnpaved: true },
-    },
-    {
       id: 'cross',
       label: '🏁 Cross',
       title: 'Cross / Enduro — ook onverharde wegen',
@@ -348,6 +342,19 @@ export default function RoutePanel({
                   </button>
                 );
               })}
+              <button
+                title="Toeristisch — vermijdt alle snelwegen, autowegen en tol. Rijdt via kleine wegen."
+                onClick={() => onPreferencesChange({ ...preferences, style: 'recommended', avoidHighways: true, avoidMotorways: true, avoidTollways: true, avoidUnpaved: true })}
+                className={`
+                  px-3 py-1.5 rounded-full text-sm font-medium border transition-colors
+                  ${preferences.avoidMotorways && preferences.avoidTollways && preferences.avoidHighways
+                    ? 'bg-brand-500 text-white border-brand-500'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
+                  }
+                `}
+              >
+                🌄 Toeristisch
+              </button>
             </div>
 
             <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mt-3 mb-2">
