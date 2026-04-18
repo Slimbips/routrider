@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const hasAccess =
     route.ownerId === user.id ||
-    route.collaborators.some((c) => c.userId === user.id && c.accepted);
+    route.collaborators.some((c: { userId: string; accepted: boolean }) => c.userId === user.id && c.accepted);
 
   if (!hasAccess) return new Response('Geen toegang.', { status: 403 });
 

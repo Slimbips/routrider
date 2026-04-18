@@ -11,7 +11,7 @@ async function canAccess(routeId: string, userId: string, requireEditor = false)
 
   if (route.ownerId === userId) return { route, allowed: true };
 
-  const collab = route.collaborators.find((c) => c.userId === userId && c.accepted);
+  const collab = route.collaborators.find((c: { userId: string; accepted: boolean; role: string }) => c.userId === userId && c.accepted);
   if (!collab) return { route, allowed: false };
   if (requireEditor && collab.role !== 'EDITOR') return { route, allowed: false };
 
