@@ -12,7 +12,6 @@ export async function calculateRoute(
     avoidFeatures.push('highways');
   if (preferences.avoidFerries) avoidFeatures.push('ferries');
   if (preferences.avoidTollways) avoidFeatures.push('tollways');
-  if (preferences.avoidUnpaved) avoidFeatures.push('unpavedroads');
 
   // Map style to ORS preference
   const preferenceMap: Record<RoutePreferences['style'], string> = {
