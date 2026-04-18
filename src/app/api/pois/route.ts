@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
     const pois = await searchPois(category, bboxCoords as [number, number, number, number]);
     return NextResponse.json(pois);
   } catch (err) {
-    console.error('POI search failed:', err);
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
   }
