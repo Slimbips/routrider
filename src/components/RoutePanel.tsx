@@ -360,7 +360,7 @@ export default function RoutePanel({
             <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mt-3 mb-2">
               Vermijden
             </label>
-            <div className="space-y-2">
+            <div className={`space-y-2 ${preferences.vehicleProfile === 'cycling-mountain' ? 'opacity-40 pointer-events-none' : ''}`}>
               {[
                 {
                   key: 'avoidHighways',
