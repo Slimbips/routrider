@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  routes         Route[]              // routes die deze user heeft aangemaakt
+  collaborations RouteCollaborator[]  // routes waar deze user aan meewerkt
+  sessions       Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Route {
+  id          String   @id @default(cuid())
+  name        String
+  ownerId     String
+  waypoints   Json     // Waypoint[]
+  preferences Json     // RoutePreferences
+  coordinates Json?    // berekende route coördinaten
+  distance    Float?
+  duration    Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner         User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  collaborators RouteCollaborator[]
+}
+
+model RouteCollaborator {
+  id        String           @id @default(cuid())
+  routeId   String
+  userId    String
+  role      CollaboratorRole @default(VIEWER)
+  invitedAt DateTime         @default(now())
+  accepted  Boolean          @default(false)
+
+  route     Route            @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([routeId, userId])
+}
+
+enum CollaboratorRole {
+  VIEWER
+  EDITOR
+}
+
