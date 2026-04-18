@@ -110,21 +110,31 @@ export default function RoutePanel({
     if (waypoints.length < 2) return;
 
     setPoiLoading(true);
+    setPoiResults([]); // clear previous results
     try {
-      // Calculate bbox from route waypoints
+      // Calculate bbox from route waypoints - smaller area for better performance
       const lats = waypoints.map(w => w.lat);
       const lngs = waypoints.map(w => w.lng);
-      const minLat = Math.min(...lats) - 0.01; // 1km buffer
-      const maxLat = Math.max(...lats) + 0.01;
-      const minLng = Math.min(...lngs) - 0.01;
-      const maxLng = Math.max(...lngs) + 0.01;
+      const minLat = Math.min(...lats) - 0.005; // 500m buffer
+      const maxLat = Math.max(...lats) + 0.005;
+      const minLng = Math.min(...lngs) - 0.005;
+      const maxLng = Math.max(...lngs) + 0.005;
 
       const bbox = `${minLng},${minLat},${maxLng},${maxLat}`;
       const res = await fetch(`/api/pois?category=${category}&bbox=${bbox}`);
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to search POIs');
+      }
+
       const pois: PoiResult[] = await res.json();
       setPoiResults(pois);
     } catch (err) {
       console.error('POI search failed:', err);
+      // Show error to user
+      setError(err instanceof Error ? err.message : 'POI search failed');
+      setTimeout(() => setError(null), 5000); // Clear error after 5 seconds
     } finally {
       setPoiLoading(false);
     }
