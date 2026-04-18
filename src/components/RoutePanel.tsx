@@ -382,11 +382,7 @@ export default function RoutePanel({
                   label: 'Geen veerboten',
                   description: 'Vermijd veerpont verbindingen',
                 },
-                {
-                  key: 'avoidUnpaved',
-                  label: 'Geen onverharde wegen',
-                  description: 'Vermijd zandpaden, gravel en onverharde tracks',
-                },
+
               ].map(({ key, label, description }) => (
                 <label
                   key={key}
