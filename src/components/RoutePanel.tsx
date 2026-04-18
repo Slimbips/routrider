@@ -49,6 +49,7 @@ export default function RoutePanel({
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [poiResults, setPoiResults] = useState<PoiResult[]>([]);
   const [poiLoading, setPoiLoading] = useState(false);
+  const [poiError, setPoiError] = useState<string | null>(null);
 
   // Address input values per waypoint (separate from Waypoint.name)
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -110,21 +111,36 @@ export default function RoutePanel({
     if (waypoints.length < 2) return;
 
     setPoiLoading(true);
+    setPoiResults([]); // clear previous results
     try {
-      // Calculate bbox from route waypoints
+      // Calculate bbox from route waypoints - larger area for more results
       const lats = waypoints.map(w => w.lat);
       const lngs = waypoints.map(w => w.lng);
-      const minLat = Math.min(...lats) - 0.01; // 1km buffer
-      const maxLat = Math.max(...lats) + 0.01;
-      const minLng = Math.min(...lngs) - 0.01;
-      const maxLng = Math.max(...lngs) + 0.01;
+      const minLat = Math.min(...lats) - 0.02; // 2km buffer
+      const maxLat = Math.max(...lats) + 0.02;
+      const minLng = Math.min(...lngs) - 0.02;
+      const maxLng = Math.max(...lngs) + 0.02;
 
       const bbox = `${minLng},${minLat},${maxLng},${maxLat}`;
       const res = await fetch(`/api/pois?category=${category}&bbox=${bbox}`);
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to search POIs');
+      }
+
       const pois: PoiResult[] = await res.json();
       setPoiResults(pois);
+      
+      if (pois.length === 0) {
+        setPoiError('Geen POI\'s gevonden in dit gebied. Probeer een langere route of ander gebied.');
+        setTimeout(() => setPoiError(null), 5000);
+      }
     } catch (err) {
       console.error('POI search failed:', err);
+      // Show error to user
+      setPoiError(err instanceof Error ? err.message : 'POI search failed');
+      setTimeout(() => setPoiError(null), 5000); // Clear error after 5 seconds
     } finally {
       setPoiLoading(false);
     }
@@ -344,7 +360,7 @@ export default function RoutePanel({
                     className="px-2 py-2 text-xs font-medium border border-gray-200 rounded-lg hover:border-brand-300 hover:bg-brand-50 transition-colors disabled:opacity-50"
                     title={`Zoek ${cat.label.toLowerCase()} langs de route`}
                   >
-                    {cat.icon} {cat.label.split(' ')[1]}
+                    {poiLoading ? '⏳' : cat.icon} {cat.label.split(' ')[1]}
                   </button>
                 ))}
               </div>
@@ -481,10 +497,10 @@ export default function RoutePanel({
             </div>
           </div>
 
-          {/* Error */}
-          {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-              {error}
+          {/* POI error */}
+          {poiError && (
+            <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-700">
+              {poiError}
             </div>
           )}
 
