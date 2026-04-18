@@ -6,9 +6,11 @@ export interface Waypoint {
 }
 
 export type RouteStyle = 'fastest' | 'recommended' | 'shortest';
+export type VehicleProfile = 'driving-car' | 'cycling-mountain';
 
 export interface RoutePreferences {
   style: RouteStyle;
+  vehicleProfile: VehicleProfile;
   avoidHighways: boolean;    // geen snelwegen (motorway)
   avoidMotorways: boolean;   // geen autowegen (trunk)
   avoidFerries: boolean;     // geen veerboten

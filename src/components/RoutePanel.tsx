@@ -60,19 +60,19 @@ export default function RoutePanel({
       id: 'toer',
       label: '🏍️ Toer',
       title: 'Toermotor — geen snelwegen, asfalt',
-      prefs: { style: 'recommended', avoidHighways: true, avoidMotorways: false, avoidFerries: false, avoidTollways: false, avoidUnpaved: true },
+      prefs: { vehicleProfile: 'driving-car', style: 'recommended', avoidHighways: true, avoidMotorways: false, avoidFerries: false, avoidTollways: false, avoidUnpaved: true },
     },
     {
       id: 'sport',
       label: '⚡ Sport',
       title: 'Sportmotor — snelste route',
-      prefs: { style: 'fastest', avoidHighways: false, avoidMotorways: false, avoidFerries: false, avoidTollways: false, avoidUnpaved: true },
+      prefs: { vehicleProfile: 'driving-car', style: 'fastest', avoidHighways: false, avoidMotorways: false, avoidFerries: false, avoidTollways: false, avoidUnpaved: true },
     },
     {
       id: 'cross',
       label: '🏁 Cross',
-      title: 'Cross / Enduro — ook onverharde wegen',
-      prefs: { style: 'recommended', avoidHighways: true, avoidMotorways: true, avoidFerries: false, avoidTollways: false, avoidUnpaved: false },
+      title: 'Cross / Enduro — zoekt gravel, paden en onverharde wegen',
+      prefs: { vehicleProfile: 'cycling-mountain', style: 'recommended', avoidHighways: false, avoidMotorways: false, avoidFerries: false, avoidTollways: false, avoidUnpaved: false },
     },
   ] as const;
 

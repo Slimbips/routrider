@@ -33,8 +33,11 @@ export async function calculateRoute(
     body.options = { avoid_features: avoidFeatures };
   }
 
+  const vehicleProfile = preferences.vehicleProfile ?? 'driving-car';
+
   const response = await fetch(
-    `${ORS_BASE_URL}/directions/driving-car/geojson`,
+    `${ORS_BASE_URL}/directions/${vehicleProfile}/geojson`,
+
     {
       method: 'POST',
       headers: {

@@ -19,6 +19,7 @@ const MapComponent = dynamic(() => import('@/components/MapComponent'), {
 });
 
 const DEFAULT_PREFERENCES: RoutePreferences = {
+  vehicleProfile: 'driving-car',
   style: 'recommended',
   avoidHighways: true,
   avoidMotorways: false,
