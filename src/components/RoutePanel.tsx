@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Waypoint, RoutePreferences, RouteResult, SavedRoute } from '@/lib/types';
+import { Waypoint, RoutePreferences, RouteResult, SavedRoute, PoiResult, PoiCategory } from '@/lib/types';
 import { formatDistance, formatDuration, downloadGpxTrack, downloadGpxRoute } from '@/lib/gpx';
 import { buildShareUrl } from '@/lib/share';
 import AddressInput from './AddressInput';
@@ -47,6 +47,8 @@ export default function RoutePanel({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [poiResults, setPoiResults] = useState<PoiResult[]>([]);
+  const [poiLoading, setPoiLoading] = useState(false);
 
   // Address input values per waypoint (separate from Waypoint.name)
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -102,6 +104,35 @@ export default function RoutePanel({
 
   const handleGpxRoute = () => {
     downloadGpxRoute(routeName, waypoints);
+  };
+
+  const handleSearchPois = async (category: PoiCategory) => {
+    if (waypoints.length < 2) return;
+
+    setPoiLoading(true);
+    try {
+      // Calculate bbox from route waypoints
+      const lats = waypoints.map(w => w.lat);
+      const lngs = waypoints.map(w => w.lng);
+      const minLat = Math.min(...lats) - 0.01; // 1km buffer
+      const maxLat = Math.max(...lats) + 0.01;
+      const minLng = Math.min(...lngs) - 0.01;
+      const maxLng = Math.max(...lngs) + 0.01;
+
+      const bbox = `${minLng},${minLat},${maxLng},${maxLat}`;
+      const res = await fetch(`/api/pois?category=${category}&bbox=${bbox}`);
+      const pois: PoiResult[] = await res.json();
+      setPoiResults(pois);
+    } catch (err) {
+      console.error('POI search failed:', err);
+    } finally {
+      setPoiLoading(false);
+    }
+  };
+
+  const handleAddPoi = (poi: PoiResult) => {
+    onAddWaypoint(poi.lat, poi.lng, poi.name);
+    setPoiResults([]); // clear results after adding
   };
 
   const handleSaveLocal = async () => {
@@ -290,6 +321,51 @@ export default function RoutePanel({
               />
             </div>
           </div>
+
+          {/* POI zoeken */}
+          {waypoints.length >= 2 && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                Onderweg stoppen bij
+              </label>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {[
+                  { id: 'restaurant' as PoiCategory, label: '🍽️ Restaurant', icon: '🍽️' },
+                  { id: 'fuel' as PoiCategory, label: '⛽ Tankstation', icon: '⛽' },
+                  { id: 'cafe' as PoiCategory, label: '☕ Café', icon: '☕' },
+                  { id: 'hotel' as PoiCategory, label: '🏨 Hotel', icon: '🏨' },
+                  { id: 'attraction' as PoiCategory, label: '🎡 Attractie', icon: '🎡' },
+                  { id: 'parking' as PoiCategory, label: '🅿️ Parking', icon: '🅿️' },
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => handleSearchPois(cat.id)}
+                    disabled={poiLoading}
+                    className="px-2 py-2 text-xs font-medium border border-gray-200 rounded-lg hover:border-brand-300 hover:bg-brand-50 transition-colors disabled:opacity-50"
+                    title={`Zoek ${cat.label.toLowerCase()} langs de route`}
+                  >
+                    {cat.icon} {cat.label.split(' ')[1]}
+                  </button>
+                ))}
+              </div>
+
+              {poiResults.length > 0 && (
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {poiResults.map((poi) => (
+                    <button
+                      key={poi.id}
+                      onClick={() => handleAddPoi(poi)}
+                      className="w-full text-left px-2 py-1.5 text-xs bg-gray-50 hover:bg-brand-50 rounded border hover:border-brand-200 transition-colors"
+                      title={`Voeg ${poi.name} toe aan route`}
+                    >
+                      <div className="font-medium text-gray-700 truncate">{poi.name}</div>
+                      <div className="text-gray-500 truncate">{poi.category}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Route voorkeuren */}
           <div>

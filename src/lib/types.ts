@@ -3,6 +3,19 @@ export interface Waypoint {
   lat: number;
   lng: number;
   name?: string; // resolved address name
+  type?: 'waypoint' | 'poi'; // distinguish regular waypoints from POI stops
+  poiCategory?: string; // e.g. 'restaurant', 'fuel', 'attraction'
+}
+
+export type PoiCategory = 'restaurant' | 'fuel' | 'cafe' | 'hotel' | 'attraction' | 'parking';
+
+export interface PoiResult {
+  id: string;
+  lat: number;
+  lng: number;
+  name: string;
+  category: PoiCategory;
+  tags?: Record<string, string>;
 }
 
 export type RouteStyle = 'fastest' | 'recommended' | 'shortest';
