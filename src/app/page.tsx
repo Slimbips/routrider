@@ -40,6 +40,7 @@ function PlannerContent() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number } | null>(null);
+  const [poiResults, setPoiResults] = useState<PoiResult[]>([]);
 
   // Load shared route for editing
   useEffect(() => {
@@ -210,6 +211,8 @@ function PlannerContent() {
         onClearRoute={handleClearRoute}
         onFlyTo={(lat, lng) => setFlyTo({ lat, lng })}
         dbRouteId={dbRouteId}
+        poiResults={poiResults}
+        onPoiResultsChange={setPoiResults}
       />
       <div className="flex-1 relative">
         <MapComponent
@@ -220,6 +223,7 @@ function PlannerContent() {
           onWaypointRightClick={removeWaypoint}
           onRouteDrag={handleRouteDrag}
           flyTo={flyTo}
+          poiResults={poiResults}
         />
         {/* Hint overlay — disappears once waypoints are added */}
         {waypoints.length === 0 && (

@@ -19,8 +19,8 @@ interface RoutePanelProps {
   onCalculate: () => void;
   onClearRoute: () => void;
   onFlyTo: (lat: number, lng: number) => void;
-  dbRouteId?: string | null;
-}
+  dbRouteId?: string | null;  poiResults?: PoiResult[];
+  onPoiResultsChange?: (results: PoiResult[]) => void;}
 
 export default function RoutePanel({
   waypoints,
@@ -36,6 +36,8 @@ export default function RoutePanel({
   onClearRoute,
   onFlyTo,
   dbRouteId,
+  poiResults = [],
+  onPoiResultsChange,
 }: RoutePanelProps) {
   const [routeName, setRouteName] = useState('Mijn Route');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -47,7 +49,8 @@ export default function RoutePanel({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [poiResults, setPoiResults] = useState<PoiResult[]>([]);
+  const [poiLoading, setPoiLoading] = useState(false);
+  const [poiError, setPoiError] = useState<string | null>(null);
   const [poiLoading, setPoiLoading] = useState(false);
   const [poiError, setPoiError] = useState<string | null>(null);
 
@@ -111,7 +114,7 @@ export default function RoutePanel({
     if (waypoints.length < 2) return;
 
     setPoiLoading(true);
-    setPoiResults([]); // clear previous results
+    setPoiError(null);
     try {
       // Calculate bbox from route waypoints - larger area for more results
       const lats = waypoints.map(w => w.lat);
@@ -130,7 +133,7 @@ export default function RoutePanel({
       }
 
       const pois: PoiResult[] = await res.json();
-      setPoiResults(pois);
+      onPoiResultsChange?.(pois);
       
       if (pois.length === 0) {
         setPoiError('Geen POI\'s gevonden in dit gebied. Probeer een langere route of ander gebied.');
@@ -148,7 +151,7 @@ export default function RoutePanel({
 
   const handleAddPoi = (poi: PoiResult) => {
     onAddWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category);
-    setPoiResults([]); // clear results after adding
+    onPoiResultsChange?.([]); // clear results after adding
   };
 
   const handleSaveLocal = async () => {
@@ -378,6 +381,73 @@ export default function RoutePanel({
                       <div className="text-gray-500 truncate">{poi.category}</div>
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* POI Search */}
+          {routeResult && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                Onderweg stoppen bij
+              </label>
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {[
+                  { category: 'restaurant' as PoiCategory, label: '🍽️ Restaurant', icon: '🍽️' },
+                  { category: 'fuel' as PoiCategory, label: '⛽ Tankstation', icon: '⛽' },
+                  { category: 'cafe' as PoiCategory, label: '☕ Café', icon: '☕' },
+                  { category: 'hotel' as PoiCategory, label: '🏨 Hotel', icon: '🏨' },
+                  { category: 'attraction' as PoiCategory, label: '🎭 Attractie', icon: '🎭' },
+                  { category: 'parking' as PoiCategory, label: '🅿️ Parkeren', icon: '🅿️' },
+                ].map(({ category, label, icon }) => (
+                  <button
+                    key={category}
+                    onClick={() => handleSearchPois(category)}
+                    disabled={poiLoading}
+                    className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white py-2 px-3 text-sm font-medium text-gray-700 hover:border-brand-300 hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <span>{icon}</span>
+                    <span>{label.split(' ')[1]}</span>
+                  </button>
+                ))}
+              </div>
+
+              {poiLoading && (
+                <div className="text-sm text-gray-500 mb-2">Zoeken...</div>
+              )}
+
+              {poiError && (
+                <div className="text-sm text-red-500 mb-2">{poiError}</div>
+              )}
+
+              {poiResults.length > 0 && (
+                <div className="mb-4">
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {poiResults.map((poi) => (
+                      <div
+                        key={poi.id}
+                        className="flex items-center justify-between gap-2 p-2 rounded border bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => handleAddPoi(poi)}
+                      >
+                        <span className="text-sm">{poi.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">
+                            {Math.round(poi.distance / 1000)}km
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFlyTo(poi.lat, poi.lng);
+                            }}
+                            className="text-xs text-brand-600 hover:text-brand-800"
+                          >
+                            👁️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

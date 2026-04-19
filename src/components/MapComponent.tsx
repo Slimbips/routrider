@@ -68,6 +68,8 @@ interface MapComponentProps {
   onRouteDrag?: (lat: number, lng: number, insertAfterIndex: number) => void;
   /** Fly to these coordinates when set */
   flyTo?: { lat: number; lng: number } | null;
+  /** POI results to show on map */
+  poiResults?: PoiResult[];
 }
 
 /** Find which waypoint index to insert after, based on drag position on the route */
@@ -115,10 +117,12 @@ export default function MapComponent({
   onWaypointRightClick,
   onRouteDrag,
   flyTo,
+  poiResults = [],
 }: MapComponentProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  const poiMarkersRef = useRef<Map<string, L.Marker>>(new Map());
   const polylineRef = useRef<L.Polyline | null>(null);
 
   // Stable callback refs to avoid recreating map on every render
@@ -230,6 +234,39 @@ export default function MapComponent({
       }
     });
   }, [waypoints]);
+
+  // --- Update POI markers when poiResults change ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const currentIds = new Set(poiResults.map((poi) => poi.id));
+
+    // Remove POI markers no longer in results
+    poiMarkersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        marker.remove();
+        poiMarkersRef.current.delete(id);
+      }
+    });
+
+    // Add or update POI markers
+    poiResults.forEach((poi) => {
+      const existing = poiMarkersRef.current.get(poi.id);
+      if (existing) {
+        existing.setLatLng([poi.lat, poi.lng]);
+      } else {
+        const icon = createPoiIcon(poi.category);
+        const marker = L.marker([poi.lat, poi.lng], {
+          icon,
+        });
+
+        marker.bindTooltip(poi.name, { permanent: false, direction: 'top' });
+        marker.addTo(map);
+        poiMarkersRef.current.set(poi.id, marker);
+      }
+    });
+  }, [poiResults]);
 
   // --- Draw / update route polyline ---
   useEffect(() => {

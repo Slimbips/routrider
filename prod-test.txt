@@ -1,0 +1,2 @@
+200
+[{"id":"node/29986648","lat":52.0940606,"lng":5.0932982,"name":"West","category":"restaurant","tags":{"addr:city":"Utrecht","addr:housenumber":"433","addr:postcode":"3532HJ","addr:street":"Vleutenseweg","amenity":"restaurant","bar":"yes","brewery":"yes","indoor_seating":"yes","name":"West","opening_hours":"Mo-We 12:00-23:30; Th-Su 12:00-00:30","outdoor_seating":"yes","source":"BAG","source:date":"2014-02-11","website":"https://www.restaurantwest.nl/"}},{"id":"node/30255230","lat":52.0931656,"lng

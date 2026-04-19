@@ -134,6 +134,7 @@ export default function SharePageContent() {
           onMapClick={() => {}}
           onWaypointDrag={() => {}}
           onWaypointRightClick={() => {}}
+          poiResults={[]}
         />
       </div>
 
