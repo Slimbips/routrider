@@ -19,8 +19,10 @@ interface RoutePanelProps {
   onCalculate: () => void;
   onClearRoute: () => void;
   onFlyTo: (lat: number, lng: number) => void;
-  dbRouteId?: string | null;  poiResults?: PoiResult[];
-  onPoiResultsChange?: (results: PoiResult[]) => void;}
+  dbRouteId?: string | null;
+  poiResults?: PoiResult[];
+  onPoiResultsChange?: (results: PoiResult[]) => void;
+}
 
 export default function RoutePanel({
   waypoints,
