@@ -321,8 +321,14 @@ export default function RoutePanel({
                   parking: '🅿️',
                 };
 
-                const dotColor = isFirst ? 'bg-green-500' : isLast ? 'bg-red-500' : isPoi ? 'bg-orange-500' : 'bg-blue-500';
-                const label = isFirst ? 'S' : isLast ? 'E' : isPoi ? (poiIcons[wp.poiCategory || ''] || '📍') : index.toString();
+                const dotColor = isPoi ? 'bg-orange-500' : isFirst ? 'bg-green-500' : isLast ? 'bg-red-500' : 'bg-blue-500';
+                const label = isPoi
+                  ? poiIcons[wp.poiCategory || ''] || '📍'
+                  : isFirst
+                  ? 'S'
+                  : isLast
+                  ? 'E'
+                  : index.toString();
 
                 return (
                   <li
@@ -369,7 +375,7 @@ export default function RoutePanel({
           </div>
 
           {/* POI Search */}
-          {routeResult && (
+          {waypoints.length >= 2 && (
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
                 Onderweg stoppen bij
