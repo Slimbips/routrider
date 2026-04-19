@@ -51,8 +51,6 @@ export default function RoutePanel({
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [poiLoading, setPoiLoading] = useState(false);
   const [poiError, setPoiError] = useState<string | null>(null);
-  const [poiLoading, setPoiLoading] = useState(false);
-  const [poiError, setPoiError] = useState<string | null>(null);
 
   // Address input values per waypoint (separate from Waypoint.name)
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -152,6 +150,21 @@ export default function RoutePanel({
   const handleAddPoi = (poi: PoiResult) => {
     onAddWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category);
     onPoiResultsChange?.([]); // clear results after adding
+  };
+
+  // Calculate distance between two coordinates (in meters) using haversine formula
+  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371; // Earth's radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c * 1000; // return in meters
   };
 
   const handleSaveLocal = async () => {
@@ -424,29 +437,34 @@ export default function RoutePanel({
               {poiResults.length > 0 && (
                 <div className="mb-4">
                   <div className="max-h-40 overflow-y-auto space-y-1">
-                    {poiResults.map((poi) => (
-                      <div
-                        key={poi.id}
-                        className="flex items-center justify-between gap-2 p-2 rounded border bg-gray-50 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => handleAddPoi(poi)}
-                      >
-                        <span className="text-sm">{poi.name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500">
-                            {Math.round(poi.distance / 1000)}km
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onFlyTo(poi.lat, poi.lng);
-                            }}
-                            className="text-xs text-brand-600 hover:text-brand-800"
-                          >
-                            👁️
-                          </button>
+                    {poiResults.map((poi) => {
+                      const distance = waypoints.length > 0 
+                        ? calculateDistance(waypoints[0].lat, waypoints[0].lng, poi.lat, poi.lng)
+                        : 0;
+                      return (
+                        <div
+                          key={poi.id}
+                          className="flex items-center justify-between gap-2 p-2 rounded border bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => handleAddPoi(poi)}
+                        >
+                          <span className="text-sm">{poi.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">
+                              {Math.round(distance / 1000)}km
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onFlyTo(poi.lat, poi.lng);
+                              }}
+                              className="text-xs text-brand-600 hover:text-brand-800"
+                            >
+                              👁️
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
