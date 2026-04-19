@@ -309,22 +309,34 @@ export default function RoutePanel({
               {waypoints.map((wp, index) => {
                 const isFirst = index === 0;
                 const isLast = index === waypoints.length - 1;
-                const dotColor = isFirst ? 'bg-green-500' : isLast ? 'bg-red-500' : 'bg-blue-500';
-                const label = isFirst ? 'Start' : isLast ? 'Einde' : `Via ${index}`;
+                const isPoi = wp.type === 'poi';
+
+                // POI icons
+                const poiIcons: Record<string, string> = {
+                  restaurant: '🍽️',
+                  fuel: '⛽',
+                  cafe: '☕',
+                  hotel: '🏨',
+                  attraction: '🎭',
+                  parking: '🅿️',
+                };
+
+                const dotColor = isFirst ? 'bg-green-500' : isLast ? 'bg-red-500' : isPoi ? 'bg-orange-500' : 'bg-blue-500';
+                const label = isFirst ? 'S' : isLast ? 'E' : isPoi ? (poiIcons[wp.poiCategory || ''] || '📍') : index.toString();
 
                 return (
                   <li
                     key={wp.id}
-                    draggable
-                    onDragStart={() => handleDragStart(index)}
+                    draggable={!isPoi} // POI waypoints are not draggable
+                    onDragStart={() => !isPoi && handleDragStart(index)}
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => handleDrop(index)}
-                    className="flex items-center gap-2 group cursor-grab active:cursor-grabbing"
+                    onDrop={() => !isPoi && handleDrop(index)}
+                    className={`flex items-center gap-2 group ${isPoi ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
                   >
                     <span
                       className={`flex-shrink-0 w-5 h-5 rounded-full ${dotColor} flex items-center justify-center text-white text-[10px] font-bold`}
                     >
-                      {isFirst ? 'S' : isLast ? 'E' : index}
+                      {label}
                     </span>
                     <div className="flex-1 min-w-0">
                       <span
@@ -355,51 +367,6 @@ export default function RoutePanel({
               />
             </div>
           </div>
-
-          {/* POI zoeken */}
-          {waypoints.length >= 2 && (
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-                Onderweg stoppen bij
-              </label>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {[
-                  { id: 'restaurant' as PoiCategory, label: '🍽️ Restaurant', icon: '🍽️' },
-                  { id: 'fuel' as PoiCategory, label: '⛽ Tankstation', icon: '⛽' },
-                  { id: 'cafe' as PoiCategory, label: '☕ Café', icon: '☕' },
-                  { id: 'hotel' as PoiCategory, label: '🏨 Hotel', icon: '🏨' },
-                  { id: 'attraction' as PoiCategory, label: '🎡 Attractie', icon: '🎡' },
-                  { id: 'parking' as PoiCategory, label: '🅿️ Parking', icon: '🅿️' },
-                ].map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => handleSearchPois(cat.id)}
-                    disabled={poiLoading}
-                    className="px-2 py-2 text-xs font-medium border border-gray-200 rounded-lg hover:border-brand-300 hover:bg-brand-50 transition-colors disabled:opacity-50"
-                    title={`Zoek ${cat.label.toLowerCase()} langs de route`}
-                  >
-                    {poiLoading ? '⏳' : cat.icon} {cat.label.split(' ')[1]}
-                  </button>
-                ))}
-              </div>
-
-              {poiResults.length > 0 && (
-                <div className="space-y-1 max-h-40 overflow-y-auto">
-                  {poiResults.map((poi) => (
-                    <button
-                      key={poi.id}
-                      onClick={() => handleAddPoi(poi)}
-                      className="w-full text-left px-2 py-1.5 text-xs bg-gray-50 hover:bg-brand-50 rounded border hover:border-brand-200 transition-colors"
-                      title={`Voeg ${poi.name} toe aan route`}
-                    >
-                      <div className="font-medium text-gray-700 truncate">{poi.name}</div>
-                      <div className="text-gray-500 truncate">{poi.category}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* POI Search */}
           {routeResult && (
