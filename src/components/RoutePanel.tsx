@@ -413,21 +413,37 @@ export default function RoutePanel({
                 <div className="mb-4">
                   <div className="max-h-40 overflow-y-auto space-y-1">
                     {poiResults.map((poi) => {
+                      const poiIcons: Record<PoiCategory, string> = {
+                        restaurant: '🍽️',
+                        fuel: '⛽',
+                        cafe: '☕',
+                        hotel: '🏨',
+                        attraction: '🎭',
+                        parking: '🅿️',
+                      };
                       const distance = waypoints.length > 0 
                         ? calculateDistance(waypoints[0].lat, waypoints[0].lng, poi.lat, poi.lng)
                         : 0;
                       return (
-                        <div
+                        <button
                           key={poi.id}
-                          className="flex items-center justify-between gap-2 p-2 rounded border bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                          type="button"
                           onClick={() => handleAddPoi(poi)}
+                          className="w-full text-left flex items-center justify-between gap-3 p-2 rounded border bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
                         >
-                          <span className="text-sm">{poi.name}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="flex-shrink-0 text-lg">{poiIcons[poi.category] || '📍'}</span>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-gray-800 truncate">{poi.name}</div>
+                              <div className="text-xs text-gray-500 truncate">{poi.category}</div>
+                            </div>
+                          </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-500">
                               {Math.round(distance / 1000)}km
                             </span>
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onFlyTo(poi.lat, poi.lng);
@@ -437,7 +453,7 @@ export default function RoutePanel({
                               👁️
                             </button>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
