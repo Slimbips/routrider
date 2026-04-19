@@ -47,7 +47,8 @@ function createPoiIcon(category: string): L.DivIcon {
         box-shadow:0 2px 6px rgba(0,0,0,.4);
         display:flex;align-items:center;justify-content:center;
         font-size:16px;
-      ">${icons[category] || '📍'}</div>`,
+        pointer-events:auto;
+      ">${icons[category] || '📍'}</div>
     iconSize: [32, 32],
     iconAnchor: [16, 32],
     popupAnchor: [0, -34],
