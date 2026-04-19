@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { Waypoint, RoutePreferences, RouteResult } from '@/lib/types';
+import { Waypoint, RoutePreferences, RouteResult, PoiResult } from '@/lib/types';
 import { decodeSharePayload } from '@/lib/share';
 import RoutePanel from '@/components/RoutePanel';
 import Navbar from '@/components/Navbar';

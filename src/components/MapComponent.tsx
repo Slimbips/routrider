@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Waypoint, RouteResult } from '@/lib/types';
+import { Waypoint, RouteResult, PoiResult } from '@/lib/types';
 
 // Custom colored circle markers (avoids missing image issue with default Leaflet icons)
 function createMarkerIcon(color: string, label: string): L.DivIcon {
