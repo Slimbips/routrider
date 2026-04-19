@@ -231,7 +231,11 @@ export default function MapComponent({
         });
 
         if (wp.name) {
-          marker.bindTooltip(wp.name, { permanent: false, direction: 'top' });
+          marker.bindTooltip(wp.name, {
+            permanent: false,
+            direction: 'top',
+            interactive: false,
+          });
         }
 
         if (isPoi) {
@@ -270,9 +274,14 @@ export default function MapComponent({
         const icon = createPoiIcon(poi.category);
         const marker = L.marker([poi.lat, poi.lng], {
           icon,
+          interactive: true,
         });
 
-        marker.bindTooltip(poi.name, { permanent: false, direction: 'top' });
+        marker.bindTooltip(poi.name, {
+          permanent: false,
+          direction: 'top',
+          interactive: false,
+        });
         marker.on('click', () => {
           onPoiClickRef.current?.(poi);
         });
