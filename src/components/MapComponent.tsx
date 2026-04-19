@@ -70,6 +70,8 @@ interface MapComponentProps {
   flyTo?: { lat: number; lng: number } | null;
   /** POI results to show on map */
   poiResults?: PoiResult[];
+  /** Click handler for POI map markers */
+  onPoiClick?: (poi: PoiResult) => void;
 }
 
 /** Find which waypoint index to insert after, based on drag position on the route */
@@ -118,6 +120,7 @@ export default function MapComponent({
   onRouteDrag,
   flyTo,
   poiResults = [],
+  onPoiClick,
 }: MapComponentProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -127,7 +130,9 @@ export default function MapComponent({
 
   // Stable callback refs to avoid recreating map on every render
   const onMapClickRef = useRef(onMapClick);
+  const onPoiClickRef = useRef(onPoiClick);
   useEffect(() => { onMapClickRef.current = onMapClick; }, [onMapClick]);
+  useEffect(() => { onPoiClickRef.current = onPoiClick; }, [onPoiClick]);
 
   const onWaypointDragRef = useRef(onWaypointDrag);
   useEffect(() => { onWaypointDragRef.current = onWaypointDrag; }, [onWaypointDrag]);
@@ -227,6 +232,12 @@ export default function MapComponent({
 
         if (wp.name) {
           marker.bindTooltip(wp.name, { permanent: false, direction: 'top' });
+        }
+
+        if (isPoi) {
+          marker.on('click', () => {
+            onPoiClickRef.current?.(wp as PoiResult);
+          });
         }
 
         marker.addTo(map);
