@@ -273,6 +273,9 @@ export default function MapComponent({
         });
 
         marker.bindTooltip(poi.name, { permanent: false, direction: 'top' });
+        marker.on('click', () => {
+          onPoiClickRef.current?.(poi);
+        });
         marker.addTo(map);
         poiMarkersRef.current.set(poi.id, marker);
       }
