@@ -3,97 +3,104 @@ import { RoutePreferences, RouteResult } from './types';
 const ORS_BASE_URL = 'https://api.openrouteservice.org/v2';
 
 // ---------------------------------------------------------------------------
-// BRouter — used for the touristic mode. Free, open source, supports custom
-// BRF profiles that can hard-block motorway/trunk and penalise primary roads.
+// Valhalla — used for touristic mode. Free, no API key needed.
+// use_highways:0 blocks motorway + trunk (all A-roads in NL).
+// N-wegen (primary) cannot be hard-blocked by any free public API,
+// but lowering use_highways forces the router onto secondary/tertiary roads.
 // ---------------------------------------------------------------------------
 
-// BRF profile: blocks motorway/trunk/motorroad, heavy penalty on primary,
-// prefers secondary/tertiary/unclassified (typical NL country roads).
-const TOURISTIC_BRF_PROFILE = `
----context:way
-
-assign costfactor = \\
-  if      highway == motorway      then -1 \\
-  else if highway == motorway_link then -1 \\
-  else if highway == trunk         then -1 \\
-  else if highway == trunk_link    then -1 \\
-  else if motorroad == yes         then -1 \\
-  else if highway == primary       then 4 \\
-  else if highway == primary_link  then 4 \\
-  else if highway == secondary     then 0.8 \\
-  else if highway == tertiary      then 0.8 \\
-  else if highway == unclassified  then 0.9 \\
-  else if highway == residential   then 1.0 \\
-  else if highway == living_street then 1.2 \\
-  else if highway == service       then 1.5 \\
-  else if highway == track         then 3.0 \\
-  else if highway == path          then -1 \\
-  else if highway == footway       then -1 \\
-  else if highway == steps         then -1 \\
-  else if highway == cycleway      then -1 \\
-  else                                  1.5 \\
-  endif
-
----context:node
-
-assign initialcost 0
-`;
-
-const BROUTER_URLS = [
-  'https://brouter.de/brouter',
-  'https://brouter.overkill.nu/brouter',
+const VALHALLA_URLS = [
+  'https://valhalla1.openstreetmap.de',
+  'https://valhalla.openstreetmap.de',
 ];
 
-async function calculateRouteBRouter(
+async function calculateRouteValhalla(
   coordinates: [number, number][], // [lng, lat]
+  avoidFerries: boolean,
+  avoidTollways: boolean,
 ): Promise<RouteResult> {
-  const lonlats = coordinates.map(([lng, lat]) => `${lng},${lat}`).join('|');
+  const locations = coordinates.map(([lng, lat]) => ({ lon: lng, lat }));
 
-  const params = new URLSearchParams({
-    lonlats,
-    profile: 'custom',
-    format: 'geojson',
-    pfile: TOURISTIC_BRF_PROFILE,
-  });
+  const body = {
+    locations,
+    costing: 'auto',
+    costing_options: {
+      auto: {
+        use_highways: 0.0,   // blocks motorway + trunk (A-roads)
+        use_tolls: avoidTollways ? 0.0 : 1.0,
+        use_ferry: avoidFerries ? 0.0 : 1.0,
+        use_living_streets: 0.5,
+      },
+    },
+    units: 'km',
+  };
 
   let lastError: Error | null = null;
-  for (const baseUrl of BROUTER_URLS) {
+  for (const base of VALHALLA_URLS) {
     try {
-      const res = await fetch(baseUrl, {
+      const res = await fetch(`${base}/route`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-        signal: AbortSignal.timeout(20000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(25000),
       });
 
+      const data = await res.json() as Record<string, unknown>;
       if (!res.ok) {
-        const text = await res.text().catch(() => res.statusText);
-        throw new Error(text || res.statusText);
+        throw new Error((data.error as string) ?? res.statusText);
       }
 
-      const data = await res.json();
-      const feature = data?.features?.[0];
-      if (!feature) throw new Error('Geen route gevonden (BRouter)');
+      const trip = data.trip as Record<string, unknown> | undefined;
+      if (!trip) throw new Error('Geen route gevonden (Valhalla)');
 
-      const coords: [number, number][] = (feature.geometry.coordinates as number[][]).map(
-        ([lng, lat]) => [lng, lat] as [number, number]
-      );
+      const summary = trip.summary as Record<string, number>;
+      const legs = trip.legs as Array<{ shape: string }>;
 
-      const props = feature.properties as Record<string, string>;
-      const distanceM = parseFloat(props['track-length'] ?? '0');
-      const durationS = parseFloat(props['total-time'] ?? '0');
+      // Valhalla returns encoded polyline6 — decode it
+      const coords = legs.flatMap(l => l.shape ? decodePolyline6Str(l.shape) : []);
 
       return {
         coordinates: coords,
-        distance: distanceM,
-        duration: Math.round(durationS),
+        distance: Math.round(summary.length * 1000),   // km → m
+        duration: Math.round(summary.time),             // already seconds
       };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
     }
   }
 
-  throw lastError ?? new Error('BRouter niet beschikbaar');
+  throw lastError ?? new Error('Valhalla niet beschikbaar');
+}
+
+function decodePolyline6Str(encoded: string): [number, number][] {
+  const coords: [number, number][] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let b: number;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    coords.push([lng / 1e6, lat / 1e6]); // [lng, lat] to match ORS format
+  }
+  return coords;
 }
 
 type OrsFeature = {
@@ -102,8 +109,6 @@ type OrsFeature = {
     summary: { distance: number; duration: number };
     extras?: {
       elevation?: { values?: [number, number, number][] };
-      waytype?: { values?: [number, number, number][] };
-      waytypes?: { values?: [number, number, number][] };
     };
   };
 };
@@ -147,52 +152,6 @@ function isTouristicMode(preferences: RoutePreferences): boolean {
     preferences.avoidHighways &&
     preferences.avoidMotorways
   );
-}
-
-function createSquarePolygon(lng: number, lat: number, halfSizeDegrees: number) {
-  return [[
-    [lng - halfSizeDegrees, lat - halfSizeDegrees],
-    [lng + halfSizeDegrees, lat - halfSizeDegrees],
-    [lng + halfSizeDegrees, lat + halfSizeDegrees],
-    [lng - halfSizeDegrees, lat + halfSizeDegrees],
-    [lng - halfSizeDegrees, lat - halfSizeDegrees],
-  ]];
-}
-
-function buildAvoidPolygonsFromMajorRoads(feature: OrsFeature): Record<string, unknown> | null {
-  const coordinates = feature.geometry.coordinates;
-  const waytypeValues = feature.properties.extras?.waytypes?.values ?? feature.properties.extras?.waytype?.values;
-
-  if (!waytypeValues?.length || coordinates.length < 2) return null;
-
-  const polygons: number[][][][] = [];
-  // Check for waytype values 1-3: motorways, trunk, primary roads (N-roads, A-roads, E-roads all fall in this range)
-  const MAJOR_ROAD_WAYTYPES = [0, 1, 2, 3];
-  const halfSizeDegrees = 0.004; // ~400m buffer to force strong rerouting in NL
-
-  for (const [startIndex, endIndex, value] of waytypeValues) {
-    if (!MAJOR_ROAD_WAYTYPES.includes(value)) continue;
-
-    const segmentLength = endIndex - startIndex;
-    // Sample much more densely: every 50-100m instead of every 200m
-    const step = Math.max(1, Math.floor(segmentLength / 8));
-
-    for (let index = startIndex; index <= endIndex && index < coordinates.length; index += step) {
-      const [lng, lat] = coordinates[index];
-      polygons.push(createSquarePolygon(lng, lat, halfSizeDegrees));
-      // Much higher limit to ensure full coverage of major roads
-      if (polygons.length >= 50) break;
-    }
-
-    if (polygons.length >= 50) break;
-  }
-
-  if (polygons.length === 0) return null;
-
-  return {
-    type: 'MultiPolygon',
-    coordinates: polygons,
-  };
 }
 
 async function requestRoute(
@@ -251,14 +210,18 @@ export async function calculateRoute(
   apiKey: string,
   _ghApiKey?: string  // kept for API compatibility, no longer used
 ): Promise<RouteResult> {
-  // Touristic mode: use BRouter with custom BRF profile to properly block
-  // motorway/trunk and penalise primary roads (N-wegen).
+  // Touristic mode: use Valhalla which blocks motorway + trunk (all A-roads).
+  // Primary roads (N-wegen) cannot be hard-blocked by any free public API.
   if (isTouristicMode(preferences)) {
     try {
-      return await calculateRouteBRouter(coordinates);
-    } catch (brouterErr) {
+      return await calculateRouteValhalla(
+        coordinates,
+        preferences.avoidFerries,
+        preferences.avoidTollways,
+      );
+    } catch (valhallaErr) {
       // Fall through to ORS so the user always gets a route
-      console.warn('BRouter touristic route failed, falling back to ORS:', brouterErr);
+      console.warn('Valhalla touristic route failed, falling back to ORS:', valhallaErr);
     }
   }
 
