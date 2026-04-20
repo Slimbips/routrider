@@ -83,6 +83,13 @@ function PlannerContent() {
     return () => es.close();
   }, [dbRouteId]);
 
+  // --- Refs for auto-recalculation ---
+  const routeResultRef = useRef<RouteResult | null>(null);
+  routeResultRef.current = routeResult;
+  const pendingRecalcRef = useRef(false);
+  const waypointsRef = useRef<Waypoint[]>([]);
+  waypointsRef.current = waypoints;
+
   // --- Waypoint management ---
 
   const addWaypoint = useCallback((lat: number, lng: number, name?: string, type?: 'waypoint' | 'poi', poiCategory?: string) => {
@@ -90,12 +97,16 @@ function PlannerContent() {
       ...prev,
       { id: crypto.randomUUID(), lat, lng, name, type: type || 'waypoint', poiCategory },
     ]);
+    // Trigger auto-recalc once there are 2+ waypoints (prev.length + 1 >= 2)
+    if (waypointsRef.current.length >= 1) pendingRecalcRef.current = true;
     setRouteResult(null);
     setError(null);
   }, []);
 
   const removeWaypoint = useCallback((id: string) => {
     setWaypoints((prev) => prev.filter((w) => w.id !== id));
+    // Trigger auto-recalc if at least 2 waypoints will remain
+    if (waypointsRef.current.length - 1 >= 2) pendingRecalcRef.current = true;
     setRouteResult(null);
   }, []);
 
@@ -117,6 +128,8 @@ function PlannerContent() {
       return next;
     });
     setRouteResult(null);
+    // Trigger auto-recalculation if route was already calculated
+    if (routeResultRef.current) pendingRecalcRef.current = true;
   }, []);
 
   // --- Route calculation ---
@@ -126,25 +139,52 @@ function PlannerContent() {
     setIsCalculating(true);
     setError(null);
 
-    try {
-      const coordinates = waypoints.map(
-        (w) => [w.lng, w.lat] as [number, number]
-      );
+    const coordinates = waypoints.map(
+      (w) => [w.lng, w.lat] as [number, number]
+    );
+
+    const postCalculate = async (prefs: RoutePreferences) => {
       const res = await fetch('/api/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ coordinates, preferences }),
+        body: JSON.stringify({ coordinates, preferences: prefs }),
       });
 
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error ?? 'Route berekening mislukt');
       }
+      return data as RouteResult;
+    };
 
-      setRouteResult(data as RouteResult);
-    } catch (err) {
+    const isStrictTouristic =
+      preferences.vehicleProfile === 'driving-car' &&
+      preferences.style === 'recommended' &&
+      preferences.avoidHighways &&
+      preferences.avoidMotorways;
+
+    try {
+      const result = await postCalculate(preferences);
+      setRouteResult(result);
+    } catch (firstErr) {
+      if (isStrictTouristic) {
+        try {
+          const relaxedPrefs: RoutePreferences = {
+            ...preferences,
+            avoidHighways: false,
+            avoidMotorways: false,
+          };
+          const fallbackResult = await postCalculate(relaxedPrefs);
+          setRouteResult(fallbackResult);
+          setError('Strikte toeristische route niet gevonden, daarom is automatisch een soepelere route gebruikt.');
+          return;
+        } catch {
+          // Fall through to show original error.
+        }
+      }
+
       setError(
-        err instanceof Error ? err.message : 'Onverwachte fout bij routeberekening'
+        firstErr instanceof Error ? firstErr.message : 'Onverwachte fout bij routeberekening'
       );
     } finally {
       setIsCalculating(false);
@@ -152,11 +192,6 @@ function PlannerContent() {
   }, [waypoints, preferences]);
 
   // Auto-recalculate when a waypoint is dragged (if route was already calculated)
-  const routeResultRef = useRef<RouteResult | null>(null);
-  routeResultRef.current = routeResult;
-
-  const pendingRecalcRef = useRef(false);
-
   const handleWaypointDrag = useCallback(
     (id: string, lat: number, lng: number) => {
       if (routeResultRef.current) pendingRecalcRef.current = true;
@@ -176,6 +211,7 @@ function PlannerContent() {
     setWaypoints([]);
     setRouteResult(null);
     setError(null);
+    setPoiResults([]);
   }, []);
 
   const handleRouteDrag = useCallback(
@@ -224,6 +260,7 @@ function PlannerContent() {
           onRouteDrag={handleRouteDrag}
           flyTo={flyTo}
           poiResults={poiResults}
+          onPoiClick={(poi) => addWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category)}
         />
         {/* Hint overlay — disappears once waypoints are added */}
         {waypoints.length === 0 && (

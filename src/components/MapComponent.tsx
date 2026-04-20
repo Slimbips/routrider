@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import './MapComponent.css';
 import { Waypoint, RouteResult, PoiResult } from '@/lib/types';
 
 // Custom colored circle markers (avoids missing image issue with default Leaflet icons)
@@ -39,7 +40,7 @@ function createPoiIcon(category: string): L.DivIcon {
   };
 
   return L.divIcon({
-    className: '',
+    className: 'poi-marker-icon',
     html: `
       <div style="
         width:32px;height:32px;border-radius:50%;
@@ -48,7 +49,10 @@ function createPoiIcon(category: string): L.DivIcon {
         display:flex;align-items:center;justify-content:center;
         font-size:16px;
         pointer-events:auto;
-      ">${icons[category] || '📍'}</div>
+        cursor:pointer;
+        z-index:1000; position:relative;">
+        ${icons[category] || '📍'}
+      </div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 32],
     popupAnchor: [0, -34],
@@ -276,6 +280,7 @@ export default function MapComponent({
         const marker = L.marker([poi.lat, poi.lng], {
           icon,
           interactive: true,
+          bubblingMouseEvents: false,
         });
 
         marker.bindTooltip(poi.name, {
@@ -283,10 +288,19 @@ export default function MapComponent({
           direction: 'top',
           interactive: false,
         });
-        marker.on('click', () => {
-          onPoiClickRef.current?.(poi);
-        });
+
         marker.addTo(map);
+        marker.setZIndexOffset(1000); // Bring POI markers to front
+
+        // Add click handler using addEventListener for better compatibility
+        const handleClick = (e: L.LeafletMouseEvent) => {
+          L.DomEvent.stopPropagation(e);
+          console.log('POI marker clicked:', poi.name);
+          onPoiClickRef.current?.(poi);
+        };
+
+        marker.on('click', handleClick);
+
         poiMarkersRef.current.set(poi.id, marker);
       }
     });

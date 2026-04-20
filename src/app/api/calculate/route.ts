@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { calculateRoute } from '@/lib/routing';
 import { RoutePreferences } from '@/lib/types';
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ORS_API_KEY;
   if (!apiKey) {
@@ -27,8 +29,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const ghApiKey = process.env.GRAPHHOPPER_API_KEY;
+
   try {
-    const result = await calculateRoute(coordinates, preferences, apiKey);
+    const result = await calculateRoute(coordinates, preferences, apiKey, ghApiKey);
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Onbekende fout';

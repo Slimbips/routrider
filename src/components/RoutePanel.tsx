@@ -110,48 +110,39 @@ export default function RoutePanel({
     downloadGpxRoute(routeName, waypoints);
   };
 
-  const handleSearchPois = async (category: PoiCategory) => {
-    if (waypoints.length < 2) return;
-
-    setPoiLoading(true);
-    setPoiError(null);
-    try {
-      // Calculate bbox from route waypoints - larger area for more results
-      const lats = waypoints.map(w => w.lat);
-      const lngs = waypoints.map(w => w.lng);
-      const minLat = Math.min(...lats) - 0.02; // 2km buffer
-      const maxLat = Math.max(...lats) + 0.02;
-      const minLng = Math.min(...lngs) - 0.02;
-      const maxLng = Math.max(...lngs) + 0.02;
-
-      const bbox = `${minLng},${minLat},${maxLng},${maxLat}`;
-      const res = await fetch(`/api/pois?category=${category}&bbox=${bbox}`);
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to search POIs');
-      }
-
-      const pois: PoiResult[] = await res.json();
-      onPoiResultsChange?.(pois);
-      
-      if (pois.length === 0) {
-        setPoiError('Geen POI\'s gevonden in dit gebied. Probeer een langere route of ander gebied.');
-        setTimeout(() => setPoiError(null), 5000);
-      }
-    } catch (err) {
-      console.error('POI search failed:', err);
-      // Show error to user
-      setPoiError(err instanceof Error ? err.message : 'POI search failed');
-      setTimeout(() => setPoiError(null), 5000); // Clear error after 5 seconds
-    } finally {
-      setPoiLoading(false);
-    }
+  const POI_QUERIES: Record<PoiCategory, string> = {
+    restaurant: 'amenity=restaurant',
+    fuel: 'amenity=fuel',
+    cafe: 'amenity=cafe',
+    hotel: 'tourism=hotel',
+    attraction: 'tourism=attraction',
+    parking: 'amenity=parking',
   };
 
-  const handleAddPoi = (poi: PoiResult) => {
-    onAddWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category);
-    onPoiResultsChange?.([]); // clear results after adding
+  const OVERPASS_URLS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.openstreetmap.fr/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  ];
+
+  const fetchOverpass = async (query: string, timeoutMs: number) => {
+    const body = `data=${encodeURIComponent(query)}`;
+    const requests = OVERPASS_URLS.map((url) =>
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(timeoutMs),
+      }).then(async (res) => {
+        if (!res.ok) throw new Error(`${url}: ${res.status}`);
+        const data = await res.json();
+        if (!data.elements) throw new Error('No elements');
+        return data;
+      })
+    );
+
+    return Promise.any(requests);
   };
 
   // Calculate distance between two coordinates (in meters) using haversine formula
@@ -166,7 +157,104 @@ export default function RoutePanel({
         Math.sin(dLng / 2) *
         Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c * 1000; // return in meters
+    return R * c * 1000;
+  };
+
+  const handleSearchPois = async (category: PoiCategory) => {
+    if (waypoints.length < 2) return;
+
+    setPoiLoading(true);
+    setPoiError(null);
+    try {
+      // Sample evenly-spaced points along the route (or straight-line between waypoints).
+      // This avoids giant bounding-box queries that time-out on long routes like Veendam→Antwerpen.
+      const routeCoords: [number, number][] = routeResult?.coordinates?.length
+        ? (routeResult.coordinates as [number, number][])
+        : waypoints.map(w => [w.lng, w.lat]);
+
+      const totalPoints = routeCoords.length;
+      const NUM_SAMPLES = Math.min(20, Math.max(6, Math.ceil(totalPoints / 40)));
+      const sampleStep = Math.floor(totalPoints / NUM_SAMPLES);
+
+      const sampledPoints: { lat: number; lng: number }[] = [];
+      for (let i = 0; i < NUM_SAMPLES; i++) {
+        const idx = Math.min(i * sampleStep, totalPoints - 1);
+        const [lng, lat] = routeCoords[idx];
+        sampledPoints.push({ lat, lng });
+      }
+      // Always include the last coordinate
+      const [lastLng, lastLat] = routeCoords[totalPoints - 1];
+      if (sampledPoints[sampledPoints.length - 1].lat !== lastLat) {
+        sampledPoints.push({ lat: lastLat, lng: lastLng });
+      }
+
+      // Radius per sample point: enough to bridge the gap between consecutive samples + a margin
+      const routeLengthKm = routeResult?.distance
+        ? routeResult.distance / 1000
+        : calculateDistance(waypoints[0].lat, waypoints[0].lng, waypoints[waypoints.length - 1].lat, waypoints[waypoints.length - 1].lng) / 1000;
+      const gapKm = routeLengthKm / sampledPoints.length;
+      const radiusM = Math.round(Math.min(15000, Math.max(4000, gapKm * 700)));
+
+      const tag = POI_QUERIES[category];
+      const aroundFilters = sampledPoints
+        .map(p => `node[${tag}](around:${radiusM},${p.lat},${p.lng});`)
+        .join('');
+
+      const nwrQuery = `[out:json][timeout:20];(${aroundFilters});out;`;
+      const fallbackAroundFilters = sampledPoints
+        .filter((_, i) => i % 2 === 0) // half the points for lighter fallback
+        .map(p => `node[${tag}](around:${radiusM + 2000},${p.lat},${p.lng});`)
+        .join('');
+      const nodeFallbackQuery = `[out:json][timeout:15];(${fallbackAroundFilters});out;`;
+
+      let data: any;
+      try {
+        data = await fetchOverpass(nwrQuery, 14000);
+      } catch {
+        data = await fetchOverpass(nodeFallbackQuery, 12000);
+      }
+
+      const seen = new Set<string>();
+      const pois: PoiResult[] = (data.elements as any[])
+        .map((el: any) => {
+          const lat = el.lat ?? el.center?.lat;
+          const lng = el.lon ?? el.center?.lon;
+          return { el, lat, lng };
+        })
+        .filter(({ el, lat, lng }: any) => el.tags?.name && typeof lat === 'number' && typeof lng === 'number')
+        .map(({ el, lat, lng }: any) => ({
+          id: `${el.type}/${el.id}`,
+          lat: lat as number,
+          lng: lng as number,
+          name: el.tags.name as string,
+          category,
+          tags: el.tags,
+        }))
+        .filter((poi) => {
+          if (seen.has(poi.id)) return false;
+          seen.add(poi.id);
+          return true;
+        })
+        .slice(0, 120);
+
+      onPoiResultsChange?.(pois);
+
+      if (pois.length === 0) {
+        setPoiError('Geen resultaten gevonden in dit gebied.');
+        setTimeout(() => setPoiError(null), 5000);
+      }
+    } catch (err) {
+      console.error('POI search failed:', err);
+      setPoiError('Zoeken mislukt. Probeer het opnieuw.');
+      setTimeout(() => setPoiError(null), 5000);
+    } finally {
+      setPoiLoading(false);
+    }
+  };
+
+  const handleAddPoi = (poi: PoiResult) => {
+    onAddWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category);
+    onPoiResultsChange?.([]); // clear results after adding
   };
 
   const handleSaveLocal = async () => {
@@ -333,11 +421,11 @@ export default function RoutePanel({
                 return (
                   <li
                     key={wp.id}
-                    draggable={!isPoi} // POI waypoints are not draggable
-                    onDragStart={() => !isPoi && handleDragStart(index)}
+                    draggable={true} // Allow dragging all waypoints including POIs
+                    onDragStart={() => handleDragStart(index)}
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => !isPoi && handleDrop(index)}
-                    className={`flex items-center gap-2 group ${isPoi ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
+                    onDrop={() => handleDrop(index)}
+                    className="flex items-center gap-2 group cursor-grab active:cursor-grabbing"
                   >
                     <span
                       className={`flex-shrink-0 w-5 h-5 rounded-full ${dotColor} flex items-center justify-center text-white text-[10px] font-bold`}
@@ -490,6 +578,15 @@ export default function RoutePanel({
             <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
               Routestijl
             </label>
+            {(() => {
+              const isTouristicSelected =
+                preferences.style === 'recommended' &&
+                preferences.avoidHighways &&
+                preferences.avoidMotorways &&
+                preferences.avoidTollways &&
+                preferences.avoidFerries;
+
+              return (
             <div className="flex gap-2 flex-wrap">
               {(['fastest', 'recommended', 'shortest'] as const).map((style) => {
                 const labels: Record<string, string> = {
@@ -497,13 +594,17 @@ export default function RoutePanel({
                   recommended: 'Aangeraden',
                   shortest: 'Kort',
                 };
+
+                const isRegularStyleActive =
+                  preferences.style === style && !(isTouristicSelected && style === 'recommended');
+
                 return (
                   <button
                     key={style}
                     onClick={() => handlePrefChange('style', style)}
                     className={`
                       px-3 py-1.5 rounded-full text-sm font-medium border transition-colors
-                      ${preferences.style === style
+                      ${isRegularStyleActive
                         ? 'bg-brand-500 text-white border-brand-500'
                         : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
                       }
@@ -514,11 +615,11 @@ export default function RoutePanel({
                 );
               })}
               <button
-                title="Toeristisch — vermijdt alle snelwegen, autowegen en tol. Rijdt via kleine wegen."
-                onClick={() => onPreferencesChange({ ...preferences, style: 'recommended', avoidHighways: true, avoidMotorways: true, avoidTollways: true, avoidUnpaved: true })}
+                title="Toeristisch — vermijdt snelwegen, autowegen, tolwegen en veerboten. Rijdt via kleinere wegen."
+                onClick={() => onPreferencesChange({ ...preferences, style: 'recommended', avoidHighways: true, avoidMotorways: true, avoidTollways: true, avoidFerries: true, avoidUnpaved: true })}
                 className={`
                   px-3 py-1.5 rounded-full text-sm font-medium border transition-colors
-                  ${preferences.avoidMotorways && preferences.avoidTollways && preferences.avoidHighways
+                  ${isTouristicSelected
                     ? 'bg-brand-500 text-white border-brand-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
                   }
@@ -527,6 +628,8 @@ export default function RoutePanel({
                 🌄 Toeristisch
               </button>
             </div>
+              );
+            })()}
 
             <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mt-3 mb-2">
               Vermijden
@@ -580,6 +683,13 @@ export default function RoutePanel({
           {poiError && (
             <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-700">
               {poiError}
+            </div>
+          )}
+
+          {/* Route error */}
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              {error}
             </div>
           )}
 

@@ -1,0 +1,11 @@
+.poi-marker-icon,
+.poi-marker-icon * {
+  pointer-events: auto !important;
+}
+
+.poi-marker-icon {
+  z-index: 1000 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
