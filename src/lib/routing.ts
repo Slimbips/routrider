@@ -1,74 +1,99 @@
 import { RoutePreferences, RouteResult } from './types';
 
 const ORS_BASE_URL = 'https://api.openrouteservice.org/v2';
-const GH_BASE_URL = 'https://graphhopper.com/api/1';
 
 // ---------------------------------------------------------------------------
-// GraphHopper — used for the touristic mode because it supports custom_model
-// with hard road-class penalties that ORS public API cannot do.
+// BRouter — used for the touristic mode. Free, open source, supports custom
+// BRF profiles that can hard-block motorway/trunk and penalise primary roads.
 // ---------------------------------------------------------------------------
 
-async function calculateRouteGraphHopper(
+// BRF profile: blocks motorway/trunk/motorroad, heavy penalty on primary,
+// prefers secondary/tertiary/unclassified (typical NL country roads).
+const TOURISTIC_BRF_PROFILE = `
+---context:way
+
+assign costfactor = \\
+  if      highway == motorway      then -1 \\
+  else if highway == motorway_link then -1 \\
+  else if highway == trunk         then -1 \\
+  else if highway == trunk_link    then -1 \\
+  else if motorroad == yes         then -1 \\
+  else if highway == primary       then 4 \\
+  else if highway == primary_link  then 4 \\
+  else if highway == secondary     then 0.8 \\
+  else if highway == tertiary      then 0.8 \\
+  else if highway == unclassified  then 0.9 \\
+  else if highway == residential   then 1.0 \\
+  else if highway == living_street then 1.2 \\
+  else if highway == service       then 1.5 \\
+  else if highway == track         then 3.0 \\
+  else if highway == path          then -1 \\
+  else if highway == footway       then -1 \\
+  else if highway == steps         then -1 \\
+  else if highway == cycleway      then -1 \\
+  else                                  1.5 \\
+  endif
+
+---context:node
+
+assign initialcost 0
+`;
+
+const BROUTER_URLS = [
+  'https://brouter.de/brouter',
+  'https://brouter.overkill.nu/brouter',
+];
+
+async function calculateRouteBRouter(
   coordinates: [number, number][], // [lng, lat]
-  ghApiKey: string
 ): Promise<RouteResult> {
-  const points = coordinates.map(([lng, lat]) => [lat, lng]); // GH wants [lat, lng]
+  const lonlats = coordinates.map(([lng, lat]) => `${lng},${lat}`).join('|');
 
-  const body = {
-    points,
-    profile: 'car',
-    points_encoded: false,
-    instructions: false,
-    elevation: false,
-    details: [],
-    'ch.disable': true, // required when using custom_model
-    custom_model: {
-      priority: [
-        // Hard block: motorway, motorway_link, trunk, trunk_link
-        { if: 'road_class == MOTORWAY',      multiply_by: '0.0' },
-        { if: 'road_class == TRUNK',         multiply_by: '0.0' },
-        // motorroad=yes is not a road_class but a tag — penalise via max_speed proxy
-        { if: 'road_environment == TUNNEL',  multiply_by: '0.3' },
-        // Strong penalty: primary roads (N-wegen)
-        { if: 'road_class == PRIMARY',       multiply_by: '0.1' },
-        // Prefer secondary, tertiary, unclassified
-        { if: 'road_class == SECONDARY',     multiply_by: '2.0' },
-        { if: 'road_class == TERTIARY',      multiply_by: '2.0' },
-        { if: 'road_class == UNCLASSIFIED',  multiply_by: '1.8' },
-        { if: 'road_class == RESIDENTIAL',   multiply_by: '1.5' },
-      ],
-    },
-  };
-
-  const res = await fetch(`${GH_BASE_URL}/route?key=${ghApiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+  const params = new URLSearchParams({
+    lonlats,
+    profile: 'custom',
+    format: 'geojson',
+    pfile: TOURISTIC_BRF_PROFILE,
   });
 
-  if (!res.ok) {
-    let msg = res.statusText;
+  let lastError: Error | null = null;
+  for (const baseUrl of BROUTER_URLS) {
     try {
-      const err = await res.json();
-      msg = err?.message ?? err?.hints?.[0]?.message ?? msg;
-    } catch { /* ignore */ }
-    throw new Error(msg);
+      const res = await fetch(baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+        signal: AbortSignal.timeout(20000),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new Error(text || res.statusText);
+      }
+
+      const data = await res.json();
+      const feature = data?.features?.[0];
+      if (!feature) throw new Error('Geen route gevonden (BRouter)');
+
+      const coords: [number, number][] = (feature.geometry.coordinates as number[][]).map(
+        ([lng, lat]) => [lng, lat] as [number, number]
+      );
+
+      const props = feature.properties as Record<string, string>;
+      const distanceM = parseFloat(props['track-length'] ?? '0');
+      const durationS = parseFloat(props['total-time'] ?? '0');
+
+      return {
+        coordinates: coords,
+        distance: distanceM,
+        duration: Math.round(durationS),
+      };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
   }
 
-  const data = await res.json();
-  const path = data?.paths?.[0];
-  if (!path) throw new Error('Geen route gevonden (GraphHopper)');
-
-  // GH returns [lng, lat, elev?] per point — extract [lng, lat]
-  const coords: [number, number][] = (path.points.coordinates as number[][]).map(
-    ([lng, lat]) => [lng, lat] as [number, number]
-  );
-
-  return {
-    coordinates: coords,
-    distance: path.distance as number,
-    duration: Math.round((path.time as number) / 1000), // ms → seconds
-  };
+  throw lastError ?? new Error('BRouter niet beschikbaar');
 }
 
 type OrsFeature = {
@@ -224,15 +249,16 @@ export async function calculateRoute(
   coordinates: [number, number][], // [lng, lat] pairs
   preferences: RoutePreferences,
   apiKey: string,
-  ghApiKey?: string
+  _ghApiKey?: string  // kept for API compatibility, no longer used
 ): Promise<RouteResult> {
-  // Touristic mode: use GraphHopper custom_model to properly block motorway/trunk/primary
-  if (isTouristicMode(preferences) && ghApiKey) {
+  // Touristic mode: use BRouter with custom BRF profile to properly block
+  // motorway/trunk and penalise primary roads (N-wegen).
+  if (isTouristicMode(preferences)) {
     try {
-      return await calculateRouteGraphHopper(coordinates, ghApiKey);
-    } catch (ghErr) {
-      // Fall through to ORS as a last resort so the user always gets a route
-      console.warn('GraphHopper touristic route failed, falling back to ORS:', ghErr);
+      return await calculateRouteBRouter(coordinates);
+    } catch (brouterErr) {
+      // Fall through to ORS so the user always gets a route
+      console.warn('BRouter touristic route failed, falling back to ORS:', brouterErr);
     }
   }
 
