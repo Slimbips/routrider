@@ -53,7 +53,6 @@ export default function RoutePanel({
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [poiLoading, setPoiLoading] = useState(false);
   const [poiError, setPoiError] = useState<string | null>(null);
-  const [activePoiCategory, setActivePoiCategory] = useState<PoiCategory | null>(null);
   const lastPoiRouteKeyRef = useRef<string | null>(null);
 
   // Address input values per waypoint (separate from Waypoint.name)
@@ -187,7 +186,6 @@ export default function RoutePanel({
   const handleSearchPois = useCallback(async (category: PoiCategory) => {
     if (waypoints.length < 2) return;
 
-    setActivePoiCategory(category);
     lastPoiRouteKeyRef.current = getPoiRouteKey();
     setPoiLoading(true);
     setPoiError(null);
@@ -279,15 +277,24 @@ export default function RoutePanel({
   }, [waypoints, routeResult, onPoiResultsChange, getPoiRouteKey]);
 
   useEffect(() => {
-    if (!activePoiCategory || waypoints.length < 2) return;
-    if (poiLoading) return;
+    if (!poiResults.length) {
+      lastPoiRouteKeyRef.current = getPoiRouteKey();
+      return;
+    }
 
     const nextKey = getPoiRouteKey();
-    if (lastPoiRouteKeyRef.current === nextKey) return;
+    if (!lastPoiRouteKeyRef.current) {
+      lastPoiRouteKeyRef.current = nextKey;
+      return;
+    }
 
-    lastPoiRouteKeyRef.current = nextKey;
-    void handleSearchPois(activePoiCategory);
-  }, [activePoiCategory, waypoints.length, routeResult, poiLoading, getPoiRouteKey, handleSearchPois]);
+    if (lastPoiRouteKeyRef.current !== nextKey) {
+      onPoiResultsChange?.([]);
+      setPoiError('Route aangepast. Klik opnieuw op Hotel/Restaurant/etc. om actuele POIs te laden.');
+      setTimeout(() => setPoiError(null), 5000);
+      lastPoiRouteKeyRef.current = nextKey;
+    }
+  }, [poiResults.length, routeResult, waypoints, getPoiRouteKey, onPoiResultsChange]);
 
   const handleAddPoi = (poi: PoiResult) => {
     onAddWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category);
