@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Waypoint, RoutePreferences, RouteResult, SavedRoute, PoiResult, PoiCategory } from '@/lib/types';
 import { formatDistance, formatDuration, downloadGpxTrack, downloadGpxRoute } from '@/lib/gpx';
 import { buildShareUrl } from '@/lib/share';
@@ -53,6 +53,8 @@ export default function RoutePanel({
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [poiLoading, setPoiLoading] = useState(false);
   const [poiError, setPoiError] = useState<string | null>(null);
+  const [activePoiCategory, setActivePoiCategory] = useState<PoiCategory | null>(null);
+  const lastPoiRouteKeyRef = useRef<string | null>(null);
 
   // Address input values per waypoint (separate from Waypoint.name)
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -160,9 +162,33 @@ export default function RoutePanel({
     return R * c * 1000;
   };
 
-  const handleSearchPois = async (category: PoiCategory) => {
+  const getPoiRouteKey = useCallback(() => {
+    if (routeResult?.coordinates?.length) {
+      const first = routeResult.coordinates[0];
+      const last = routeResult.coordinates[routeResult.coordinates.length - 1];
+      return [
+        'route',
+        routeResult.distance,
+        routeResult.duration,
+        routeResult.coordinates.length,
+        first?.[0],
+        first?.[1],
+        last?.[0],
+        last?.[1],
+      ].join(':');
+    }
+
+    return [
+      'wp',
+      ...waypoints.map((w) => `${w.lat.toFixed(5)},${w.lng.toFixed(5)}`),
+    ].join('|');
+  }, [routeResult, waypoints]);
+
+  const handleSearchPois = useCallback(async (category: PoiCategory) => {
     if (waypoints.length < 2) return;
 
+    setActivePoiCategory(category);
+    lastPoiRouteKeyRef.current = getPoiRouteKey();
     setPoiLoading(true);
     setPoiError(null);
     try {
@@ -250,7 +276,18 @@ export default function RoutePanel({
     } finally {
       setPoiLoading(false);
     }
-  };
+  }, [waypoints, routeResult, onPoiResultsChange, getPoiRouteKey]);
+
+  useEffect(() => {
+    if (!activePoiCategory || waypoints.length < 2) return;
+    if (poiLoading) return;
+
+    const nextKey = getPoiRouteKey();
+    if (lastPoiRouteKeyRef.current === nextKey) return;
+
+    lastPoiRouteKeyRef.current = nextKey;
+    void handleSearchPois(activePoiCategory);
+  }, [activePoiCategory, waypoints.length, routeResult, poiLoading, getPoiRouteKey, handleSearchPois]);
 
   const handleAddPoi = (poi: PoiResult) => {
     onAddWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category);
