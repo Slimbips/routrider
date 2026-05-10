@@ -291,7 +291,7 @@ function PlannerContent() {
               border border-gray-100
             "
           >
-            🖱️ Klik op de kaart om een punt toe te voegen · Gebruik het zijpaneel voor adressen
+            🖱️ Klik op de kaart voor je vertrekpunt of gebruik links de zoekbalk voor goedkope benzine in Duitsland
           </div>
         )}
       </div>
