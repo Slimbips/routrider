@@ -49,6 +49,22 @@ type OverpassResponse = {
   elements?: OverpassElement[];
 };
 
+type NominatimEntry = {
+  place_id: number;
+  lat: string;
+  lon: string;
+  display_name?: string;
+  name?: string;
+  address?: {
+    road?: string;
+    house_number?: string;
+    postcode?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+  };
+};
+
 const BORDER_ANCHORS = [
   { lat: 51.1808, lng: 6.4428, name: 'Mönchengladbach (DE grens)' },
   { lat: 51.8386, lng: 6.2426, name: 'Emmerich am Rhein (DE grens)' },
@@ -129,19 +145,24 @@ async function fetchStationsAroundOverpass(lat: number, lng: number): Promise<Ta
   ];
 
   const body = `data=${encodeURIComponent(query)}`;
-  const response = await Promise.any(
-    endpoints.map((url) =>
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-        signal: AbortSignal.timeout(13000),
-      }).then(async (res) => {
-        if (!res.ok) throw new Error(`${url}: ${res.status}`);
-        return (await res.json()) as OverpassResponse;
-      })
-    )
-  );
+  let response: OverpassResponse;
+  try {
+    response = await Promise.any(
+      endpoints.map((url) =>
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+          signal: AbortSignal.timeout(13000),
+        }).then(async (res) => {
+          if (!res.ok) throw new Error(`${url}: ${res.status}`);
+          return (await res.json()) as OverpassResponse;
+        })
+      )
+    );
+  } catch {
+    return fetchStationsAroundNominatim(lat, lng);
+  }
 
   return (response.elements ?? [])
     .map((el) => {
@@ -159,6 +180,50 @@ async function fetchStationsAroundOverpass(lat: number, lng: number): Promise<Ta
         lat: latValue,
         lng: lngValue,
         isOpen: el.tags?.opening_hours ? el.tags.opening_hours.includes('24/7') : true,
+      } as TankerListStation;
+    })
+    .filter((s): s is TankerListStation => Boolean(s));
+}
+
+async function fetchStationsAroundNominatim(lat: number, lng: number): Promise<TankerListStation[]> {
+  const delta = 0.35; // ~30-40km box
+  const viewbox = `${lng - delta},${lat + delta},${lng + delta},${lat - delta}`;
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.set('q', 'fuel station');
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('limit', '25');
+  url.searchParams.set('countrycodes', 'de');
+  url.searchParams.set('bounded', '1');
+  url.searchParams.set('viewbox', viewbox);
+  url.searchParams.set('addressdetails', '1');
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'routrider-fuel-planner/1.0',
+      'Accept-Language': 'nl,en;q=0.8',
+    },
+    signal: AbortSignal.timeout(12000),
+  });
+
+  if (!response.ok) return [];
+
+  const data = (await response.json()) as NominatimEntry[];
+  return data
+    .map((entry) => {
+      const latValue = Number(entry.lat);
+      const lngValue = Number(entry.lon);
+      if (!Number.isFinite(latValue) || !Number.isFinite(lngValue)) return null;
+      return {
+        id: `nominatim/${entry.place_id}`,
+        name: entry.name || entry.display_name?.split(',')[0] || 'Tankstation',
+        street: entry.address?.road,
+        houseNumber: entry.address?.house_number,
+        postCode: Number(entry.address?.postcode) || undefined,
+        place: entry.address?.city || entry.address?.town || entry.address?.village,
+        lat: latValue,
+        lng: lngValue,
+        isOpen: true,
       } as TankerListStation;
     })
     .filter((s): s is TankerListStation => Boolean(s));
