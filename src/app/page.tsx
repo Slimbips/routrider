@@ -94,20 +94,10 @@ function PlannerContent() {
 
   const addWaypoint = useCallback((lat: number, lng: number, name?: string, type?: 'waypoint' | 'poi', poiCategory?: string) => {
     const newPoint = { id: crypto.randomUUID(), lat, lng, name, type: type || 'waypoint', poiCategory };
-    setWaypoints((prev) => {
-      // POIs get inserted before the last waypoint (end point) so the route passes through them.
-      // Plain waypoints and the very first points are always appended at the end.
-      if (type === 'poi' && prev.length >= 2) {
-        const next = [...prev];
-        next.splice(prev.length - 1, 0, newPoint);
-        return next;
-      }
-      return [...prev, newPoint];
-    });
-    // Trigger auto-recalc once there are 2+ waypoints (prev.length + 1 >= 2)
-    if (waypointsRef.current.length >= 1) pendingRecalcRef.current = true;
+    setWaypoints([newPoint]);
     setRouteResult(null);
     setError(null);
+    setPoiResults([]);
   }, []);
 
   const removeWaypoint = useCallback((id: string) => {

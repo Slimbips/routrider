@@ -30,9 +30,23 @@ type RequestBody = {
   consumptionKmPerL: number;
   litersToTank: number;
   nlPricePerLiter: number;
+  deEstimatedPricePerLiter?: number;
   onlyOpen?: boolean;
   includeReturnTrip?: boolean;
   sortBy?: 'saving' | 'total' | 'distance' | 'fuelPrice';
+};
+
+type OverpassElement = {
+  type: 'node' | 'way' | 'relation';
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: Record<string, string>;
+};
+
+type OverpassResponse = {
+  elements?: OverpassElement[];
 };
 
 const BORDER_ANCHORS = [
@@ -106,6 +120,50 @@ async function fetchStationsAround(
     .filter((s) => typeof s.lat === 'number' && typeof s.lng === 'number');
 }
 
+async function fetchStationsAroundOverpass(lat: number, lng: number): Promise<TankerListStation[]> {
+  const query = `[out:json][timeout:20];(node["amenity"="fuel"](around:25000,${lat},${lng});way["amenity"="fuel"](around:25000,${lat},${lng});relation["amenity"="fuel"](around:25000,${lat},${lng}););out center tags;`;
+  const endpoints = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.openstreetmap.fr/api/interpreter',
+  ];
+
+  const body = `data=${encodeURIComponent(query)}`;
+  const response = await Promise.any(
+    endpoints.map((url) =>
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(13000),
+      }).then(async (res) => {
+        if (!res.ok) throw new Error(`${url}: ${res.status}`);
+        return (await res.json()) as OverpassResponse;
+      })
+    )
+  );
+
+  return (response.elements ?? [])
+    .map((el) => {
+      const latValue = el.lat ?? el.center?.lat;
+      const lngValue = el.lon ?? el.center?.lon;
+      if (typeof latValue !== 'number' || typeof lngValue !== 'number') return null;
+      return {
+        id: `${el.type}/${el.id}`,
+        name: el.tags?.name || el.tags?.brand || 'Tankstation',
+        brand: el.tags?.brand,
+        street: el.tags?.['addr:street'],
+        houseNumber: el.tags?.['addr:housenumber'],
+        postCode: Number(el.tags?.['addr:postcode']) || undefined,
+        place: el.tags?.['addr:city'] || el.tags?.['addr:place'],
+        lat: latValue,
+        lng: lngValue,
+        isOpen: el.tags?.opening_hours ? el.tags.opening_hours.includes('24/7') : true,
+      } as TankerListStation;
+    })
+    .filter((s): s is TankerListStation => Boolean(s));
+}
+
 function stationAddress(s: TankerListStation): string {
   const house = s.houseNumber ? ` ${s.houseNumber}` : '';
   const city = s.place || '';
@@ -123,12 +181,6 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
-  if (!tankerApiKey) {
-    return NextResponse.json(
-      { error: 'TANKERKOENIG_API_KEY ontbreekt. Voeg deze toe in je .env/.Vercel.' },
-      { status: 503 }
-    );
-  }
 
   let body: RequestBody;
   try {
@@ -143,6 +195,7 @@ export async function POST(request: NextRequest) {
     consumptionKmPerL,
     litersToTank,
     nlPricePerLiter,
+    deEstimatedPricePerLiter,
     onlyOpen = false,
     includeReturnTrip = false,
     sortBy = 'saving',
@@ -163,14 +216,25 @@ export async function POST(request: NextRequest) {
   if (!Number.isFinite(nlPricePerLiter) || nlPricePerLiter <= 0) {
     return NextResponse.json({ error: 'NL literprijs moet groter zijn dan 0.' }, { status: 400 });
   }
+  if (deEstimatedPricePerLiter !== undefined && (!Number.isFinite(deEstimatedPricePerLiter) || deEstimatedPricePerLiter <= 0)) {
+    return NextResponse.json({ error: 'Geschatte DE literprijs moet groter zijn dan 0.' }, { status: 400 });
+  }
 
   try {
     const nearestAnchor = pickNearestAnchor(start);
 
-    const [stationsNearAnchor, stationsNearStart] = await Promise.all([
-      fetchStationsAround(nearestAnchor.lat, nearestAnchor.lng, fuelType, tankerApiKey),
-      fetchStationsAround(start.lat, start.lng, fuelType, tankerApiKey).catch(() => []),
-    ]);
+    const useLivePricing = Boolean(tankerApiKey);
+    const dePrice = deEstimatedPricePerLiter ?? Math.max(1.3, nlPricePerLiter * 0.87);
+
+    const [stationsNearAnchor, stationsNearStart] = useLivePricing
+      ? await Promise.all([
+          fetchStationsAround(nearestAnchor.lat, nearestAnchor.lng, fuelType, tankerApiKey as string),
+          fetchStationsAround(start.lat, start.lng, fuelType, tankerApiKey as string).catch(() => []),
+        ])
+      : await Promise.all([
+          fetchStationsAroundOverpass(nearestAnchor.lat, nearestAnchor.lng),
+          fetchStationsAroundOverpass(start.lat, start.lng).catch(() => []),
+        ]);
 
     const deduped = new Map<string, TankerListStation>();
     [...stationsNearAnchor, ...stationsNearStart].forEach((s) => {
@@ -207,7 +271,8 @@ export async function POST(request: NextRequest) {
         const driveDistanceKm = driveDistanceM / 1000;
         const driveLiters = driveDistanceKm / consumptionKmPerL;
         const driveCost = driveLiters * nlPricePerLiter;
-        const fuelCost = litersToTank * (station.price as number);
+        const stationPrice = useLivePricing ? (station.price as number) : dePrice;
+        const fuelCost = litersToTank * stationPrice;
         const totalCost = driveCost + fuelCost;
 
         const option: GermanFuelOption = {
@@ -219,7 +284,7 @@ export async function POST(request: NextRequest) {
           lng: station.lng,
           isOpen: station.isOpen === true,
           fuelType,
-          fuelPrice: station.price as number,
+          fuelPrice: stationPrice,
           routeDistanceM: route.distance,
           routeDurationS: route.duration,
           evaluatedDriveDistanceM: driveDistanceM,
@@ -249,7 +314,11 @@ export async function POST(request: NextRequest) {
           return b.netSaving - a.netSaving;
       }
     });
-    return NextResponse.json({ options });
+    return NextResponse.json({
+      options,
+      priceSource: useLivePricing ? 'live' : 'estimated',
+      estimatedPriceUsed: useLivePricing ? null : dePrice,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Onbekende fout bij tankstation-zoekopdracht';
     return NextResponse.json({ error: message }, { status: 500 });
