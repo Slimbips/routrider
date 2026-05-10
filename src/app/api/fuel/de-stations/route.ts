@@ -223,18 +223,30 @@ export async function POST(request: NextRequest) {
   try {
     const nearestAnchor = pickNearestAnchor(start);
 
-    const useLivePricing = Boolean(tankerApiKey);
+    let useLivePricing = Boolean(tankerApiKey);
     const dePrice = deEstimatedPricePerLiter ?? Math.max(1.3, nlPricePerLiter * 0.87);
 
-    const [stationsNearAnchor, stationsNearStart] = useLivePricing
-      ? await Promise.all([
+    let stationsNearAnchor: TankerListStation[] = [];
+    let stationsNearStart: TankerListStation[] = [];
+
+    if (useLivePricing) {
+      try {
+        [stationsNearAnchor, stationsNearStart] = await Promise.all([
           fetchStationsAround(nearestAnchor.lat, nearestAnchor.lng, fuelType, tankerApiKey as string),
           fetchStationsAround(start.lat, start.lng, fuelType, tankerApiKey as string).catch(() => []),
-        ])
-      : await Promise.all([
-          fetchStationsAroundOverpass(nearestAnchor.lat, nearestAnchor.lng),
-          fetchStationsAroundOverpass(start.lat, start.lng).catch(() => []),
         ]);
+      } catch {
+        // Invalid, disabled, or temporarily failing Tankerkonig keys should not break the planner.
+        useLivePricing = false;
+      }
+    }
+
+    if (!useLivePricing) {
+      [stationsNearAnchor, stationsNearStart] = await Promise.all([
+        fetchStationsAroundOverpass(nearestAnchor.lat, nearestAnchor.lng),
+        fetchStationsAroundOverpass(start.lat, start.lng).catch(() => []),
+      ]);
+    }
 
     const deduped = new Map<string, TankerListStation>();
     [...stationsNearAnchor, ...stationsNearStart].forEach((s) => {
