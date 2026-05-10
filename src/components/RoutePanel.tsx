@@ -61,6 +61,9 @@ export default function RoutePanel({
   const [consumptionKmPerL, setConsumptionKmPerL] = useState('15');
   const [litersToTank, setLitersToTank] = useState('40');
   const [nlPricePerLiter, setNlPricePerLiter] = useState('2.05');
+  const [fuelOnlyOpen, setFuelOnlyOpen] = useState(true);
+  const [includeReturnTrip, setIncludeReturnTrip] = useState(true);
+  const [fuelSortBy, setFuelSortBy] = useState<'saving' | 'total' | 'distance' | 'fuelPrice'>('saving');
   const [fuelLoading, setFuelLoading] = useState(false);
   const [fuelError, setFuelError] = useState<string | null>(null);
   const [fuelOptions, setFuelOptions] = useState<GermanFuelOption[]>([]);
@@ -352,6 +355,9 @@ export default function RoutePanel({
           consumptionKmPerL: consumption,
           litersToTank: liters,
           nlPricePerLiter: nlPrice,
+          onlyOpen: fuelOnlyOpen,
+          includeReturnTrip,
+          sortBy: fuelSortBy,
         }),
       });
 
@@ -672,7 +678,7 @@ export default function RoutePanel({
                 Tankplanner Duitsland
               </label>
               <p className="text-xs text-gray-500">
-                Berekent meerdere Duitse tankstations en wat het totaal kost inclusief heenrit.
+                Berekent meerdere Duitse tankstations en wat het totaal kost inclusief ritkosten.
               </p>
             </div>
 
@@ -724,6 +730,42 @@ export default function RoutePanel({
               </label>
             </div>
 
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs text-gray-600">
+                Sorteren op
+                <select
+                  value={fuelSortBy}
+                  onChange={(e) => setFuelSortBy(e.target.value as 'saving' | 'total' | 'distance' | 'fuelPrice')}
+                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+                >
+                  <option value="saving">Hoogste besparing</option>
+                  <option value="total">Laagste totaalprijs</option>
+                  <option value="distance">Kortste rit</option>
+                  <option value="fuelPrice">Goedkoopste literprijs</option>
+                </select>
+              </label>
+              <div className="space-y-1 pt-5">
+                <label className="flex items-center gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={fuelOnlyOpen}
+                    onChange={(e) => setFuelOnlyOpen(e.target.checked)}
+                    className="h-4 w-4 accent-emerald-600"
+                  />
+                  Alleen open stations
+                </label>
+                <label className="flex items-center gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={includeReturnTrip}
+                    onChange={(e) => setIncludeReturnTrip(e.target.checked)}
+                    className="h-4 w-4 accent-emerald-600"
+                  />
+                  Heen en terug meenemen
+                </label>
+              </div>
+            </div>
+
             <button
               onClick={handleSearchGermanFuel}
               disabled={fuelLoading || waypoints.length < 1}
@@ -746,13 +788,20 @@ export default function RoutePanel({
                       <div className="text-xs font-semibold text-emerald-700">{option.fuelPrice.toFixed(3)} /L</div>
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
-                      <span>Rit: {formatDistance(option.routeDistanceM)}</span>
-                      <span>Tijd: {formatDuration(option.routeDurationS)}</span>
+                      <span>
+                        Rit: {formatDistance(option.evaluatedDriveDistanceM)}
+                        {option.includeReturnTrip ? ' (heen+terug)' : ' (heen)'}
+                      </span>
+                      <span>Tijd: {formatDuration(option.evaluatedDriveDurationS)}</span>
                       <span>Ritkosten: {formatEuro(option.driveCost)}</span>
                       <span>Tankkosten: {formatEuro(option.fuelCost)}</span>
                       <span className="font-semibold text-gray-800">Totaal: {formatEuro(option.totalCost)}</span>
                       <span className={`font-semibold ${option.netSaving >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                         {option.netSaving >= 0 ? `Besparing ${formatEuro(option.netSaving)}` : `Meerprijs ${formatEuro(Math.abs(option.netSaving))}`}
+                      </span>
+                      <span className="text-gray-500">NL tankkosten (zonder rit): {formatEuro(option.nlFuelCost)}</span>
+                      <span className={`font-medium ${option.isOpen ? 'text-emerald-700' : 'text-amber-600'}`}>
+                        {option.isOpen ? 'Nu open' : 'Nu gesloten'}
                       </span>
                     </div>
                     <button

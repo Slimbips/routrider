@@ -27,10 +27,14 @@ export interface GermanFuelOption {
   address: string;
   lat: number;
   lng: number;
+  isOpen: boolean;
   fuelType: FuelType;
   fuelPrice: number;
   routeDistanceM: number;
   routeDurationS: number;
+  evaluatedDriveDistanceM: number;
+  evaluatedDriveDurationS: number;
+  includeReturnTrip: boolean;
   driveCost: number;
   fuelCost: number;
   totalCost: number;

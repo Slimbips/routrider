@@ -30,6 +30,9 @@ type RequestBody = {
   consumptionKmPerL: number;
   litersToTank: number;
   nlPricePerLiter: number;
+  onlyOpen?: boolean;
+  includeReturnTrip?: boolean;
+  sortBy?: 'saving' | 'total' | 'distance' | 'fuelPrice';
 };
 
 const BORDER_ANCHORS = [
@@ -134,7 +137,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ongeldige JSON invoer' }, { status: 400 });
   }
 
-  const { start, fuelType, consumptionKmPerL, litersToTank, nlPricePerLiter } = body;
+  const {
+    start,
+    fuelType,
+    consumptionKmPerL,
+    litersToTank,
+    nlPricePerLiter,
+    onlyOpen = false,
+    includeReturnTrip = false,
+    sortBy = 'saving',
+  } = body;
 
   if (!start || typeof start.lat !== 'number' || typeof start.lng !== 'number') {
     return NextResponse.json({ error: 'Startpunt ontbreekt of is ongeldig.' }, { status: 400 });
@@ -165,7 +177,10 @@ export async function POST(request: NextRequest) {
       if (!deduped.has(s.id)) deduped.set(s.id, s);
     });
 
-    const candidates = [...deduped.values()]
+    const filteredStations = [...deduped.values()]
+      .filter((s) => !onlyOpen || s.isOpen === true);
+
+    const candidates = filteredStations
       .sort((a, b) => (a.price ?? 999) - (b.price ?? 999))
       .slice(0, 8);
 
@@ -186,8 +201,11 @@ export async function POST(request: NextRequest) {
           orsApiKey,
         );
 
-        const routeDistanceKm = route.distance / 1000;
-        const driveLiters = routeDistanceKm / consumptionKmPerL;
+        const distanceMultiplier = includeReturnTrip ? 2 : 1;
+        const driveDistanceM = route.distance * distanceMultiplier;
+        const driveDurationS = route.duration * distanceMultiplier;
+        const driveDistanceKm = driveDistanceM / 1000;
+        const driveLiters = driveDistanceKm / consumptionKmPerL;
         const driveCost = driveLiters * nlPricePerLiter;
         const fuelCost = litersToTank * (station.price as number);
         const totalCost = driveCost + fuelCost;
@@ -199,10 +217,14 @@ export async function POST(request: NextRequest) {
           address: stationAddress(station),
           lat: station.lat,
           lng: station.lng,
+          isOpen: station.isOpen === true,
           fuelType,
           fuelPrice: station.price as number,
           routeDistanceM: route.distance,
           routeDurationS: route.duration,
+          evaluatedDriveDistanceM: driveDistanceM,
+          evaluatedDriveDurationS: driveDurationS,
+          includeReturnTrip,
           driveCost,
           fuelCost,
           totalCost,
@@ -214,7 +236,19 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    const options = optionsRaw.sort((a, b) => b.netSaving - a.netSaving);
+    const options = [...optionsRaw].sort((a, b) => {
+      switch (sortBy) {
+        case 'total':
+          return a.totalCost - b.totalCost;
+        case 'distance':
+          return a.evaluatedDriveDistanceM - b.evaluatedDriveDistanceM;
+        case 'fuelPrice':
+          return a.fuelPrice - b.fuelPrice;
+        case 'saving':
+        default:
+          return b.netSaving - a.netSaving;
+      }
+    });
     return NextResponse.json({ options });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Onbekende fout bij tankstation-zoekopdracht';
