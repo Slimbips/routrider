@@ -18,6 +18,26 @@ export interface PoiResult {
   tags?: Record<string, string>;
 }
 
+export type FuelType = 'e5' | 'e10' | 'diesel';
+
+export interface GermanFuelOption {
+  id: string;
+  name: string;
+  brand?: string;
+  address: string;
+  lat: number;
+  lng: number;
+  fuelType: FuelType;
+  fuelPrice: number;
+  routeDistanceM: number;
+  routeDurationS: number;
+  driveCost: number;
+  fuelCost: number;
+  totalCost: number;
+  nlFuelCost: number;
+  netSaving: number;
+}
+
 export type RouteStyle = 'fastest' | 'recommended' | 'shortest';
 export type VehicleProfile = 'driving-car' | 'cycling-mountain';
 

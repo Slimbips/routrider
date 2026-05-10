@@ -139,6 +139,27 @@ function PlannerContent() {
     if (routeResultRef.current) pendingRecalcRef.current = true;
   }, []);
 
+  const setRouteToFuelStation = useCallback((lat: number, lng: number, name: string) => {
+    const start = waypointsRef.current[0];
+    if (!start) return;
+
+    setWaypoints([
+      start,
+      {
+        id: crypto.randomUUID(),
+        lat,
+        lng,
+        name,
+        type: 'poi',
+        poiCategory: 'fuel',
+      },
+    ]);
+    setRouteResult(null);
+    setError(null);
+    setPoiResults([]);
+    pendingRecalcRef.current = true;
+  }, []);
+
   // --- Route calculation ---
 
   const handleCalculate = useCallback(async () => {
@@ -256,6 +277,7 @@ function PlannerContent() {
         dbRouteId={dbRouteId}
         poiResults={poiResults}
         onPoiResultsChange={setPoiResults}
+        onSetRouteToFuelStation={setRouteToFuelStation}
       />
       <div className="flex-1 relative">
         <MapComponent

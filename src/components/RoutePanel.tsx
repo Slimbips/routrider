@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Waypoint, RoutePreferences, RouteResult, SavedRoute, PoiResult, PoiCategory } from '@/lib/types';
+import { Waypoint, RoutePreferences, RouteResult, SavedRoute, PoiResult, PoiCategory, FuelType, GermanFuelOption } from '@/lib/types';
 import { formatDistance, formatDuration, downloadGpxTrack, downloadGpxRoute } from '@/lib/gpx';
 import { buildShareUrl } from '@/lib/share';
 import AddressInput from './AddressInput';
@@ -22,6 +22,7 @@ interface RoutePanelProps {
   dbRouteId?: string | null;
   poiResults?: PoiResult[];
   onPoiResultsChange?: (results: PoiResult[]) => void;
+  onSetRouteToFuelStation: (lat: number, lng: number, name: string) => void;
 }
 
 export default function RoutePanel({
@@ -40,6 +41,7 @@ export default function RoutePanel({
   dbRouteId,
   poiResults = [],
   onPoiResultsChange,
+  onSetRouteToFuelStation,
 }: RoutePanelProps) {
   const [routeName, setRouteName] = useState('Mijn Route');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -55,6 +57,13 @@ export default function RoutePanel({
   const [poiError, setPoiError] = useState<string | null>(null);
   const [activePoiCategory, setActivePoiCategory] = useState<PoiCategory | null>(null);
   const lastPoiRouteKeyRef = useRef<string | null>(null);
+  const [fuelType, setFuelType] = useState<FuelType>('e10');
+  const [consumptionKmPerL, setConsumptionKmPerL] = useState('15');
+  const [litersToTank, setLitersToTank] = useState('40');
+  const [nlPricePerLiter, setNlPricePerLiter] = useState('2.05');
+  const [fuelLoading, setFuelLoading] = useState(false);
+  const [fuelError, setFuelError] = useState<string | null>(null);
+  const [fuelOptions, setFuelOptions] = useState<GermanFuelOption[]>([]);
 
   // Address input values per waypoint (separate from Waypoint.name)
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -301,6 +310,66 @@ export default function RoutePanel({
   const handleAddPoi = (poi: PoiResult) => {
     onAddWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category);
     onPoiResultsChange?.([]); // clear results after adding
+  };
+
+  const formatEuro = (value: number) => `EUR ${value.toFixed(2)}`;
+
+  const handleSearchGermanFuel = async () => {
+    if (waypoints.length < 1) {
+      setFuelError('Zet eerst een startpunt op de kaart.');
+      setTimeout(() => setFuelError(null), 4000);
+      return;
+    }
+
+    const consumption = Number(consumptionKmPerL);
+    const liters = Number(litersToTank);
+    const nlPrice = Number(nlPricePerLiter);
+
+    if (!Number.isFinite(consumption) || consumption <= 0) {
+      setFuelError('Verbruik moet groter zijn dan 0 (bijv. 15 km/l).');
+      return;
+    }
+    if (!Number.isFinite(liters) || liters <= 0) {
+      setFuelError('Aantal liters moet groter zijn dan 0.');
+      return;
+    }
+    if (!Number.isFinite(nlPrice) || nlPrice <= 0) {
+      setFuelError('NL prijs per liter moet groter zijn dan 0.');
+      return;
+    }
+
+    const start = waypoints[0];
+
+    setFuelLoading(true);
+    setFuelError(null);
+    try {
+      const response = await fetch('/api/fuel/de-stations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start: { lat: start.lat, lng: start.lng },
+          fuelType,
+          consumptionKmPerL: consumption,
+          litersToTank: liters,
+          nlPricePerLiter: nlPrice,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Zoeken naar Duitse tankstations mislukt');
+      }
+
+      const options = (data.options ?? []) as GermanFuelOption[];
+      setFuelOptions(options);
+      if (options.length === 0) {
+        setFuelError('Geen geschikte Duitse tankstations gevonden.');
+      }
+    } catch (err) {
+      setFuelError(err instanceof Error ? err.message : 'Onverwachte fout bij tankstation-zoekopdracht');
+    } finally {
+      setFuelLoading(false);
+    }
   };
 
   const handleSaveLocal = async () => {
@@ -595,6 +664,108 @@ export default function RoutePanel({
               )}
             </div>
           )}
+
+          {/* Duitsland tanken planner */}
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-3">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                Tankplanner Duitsland
+              </label>
+              <p className="text-xs text-gray-500">
+                Berekent meerdere Duitse tankstations en wat het totaal kost inclusief heenrit.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs text-gray-600">
+                Brandstof
+                <select
+                  value={fuelType}
+                  onChange={(e) => setFuelType(e.target.value as FuelType)}
+                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+                >
+                  <option value="e5">E5</option>
+                  <option value="e10">E10</option>
+                  <option value="diesel">Diesel</option>
+                </select>
+              </label>
+              <label className="text-xs text-gray-600">
+                Verbruik (km/l)
+                <input
+                  type="number"
+                  min="1"
+                  step="0.1"
+                  value={consumptionKmPerL}
+                  onChange={(e) => setConsumptionKmPerL(e.target.value)}
+                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+                />
+              </label>
+              <label className="text-xs text-gray-600">
+                Liters tanken
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={litersToTank}
+                  onChange={(e) => setLitersToTank(e.target.value)}
+                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+                />
+              </label>
+              <label className="text-xs text-gray-600">
+                NL prijs/liter
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.01"
+                  value={nlPricePerLiter}
+                  onChange={(e) => setNlPricePerLiter(e.target.value)}
+                  className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+                />
+              </label>
+            </div>
+
+            <button
+              onClick={handleSearchGermanFuel}
+              disabled={fuelLoading || waypoints.length < 1}
+              className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {fuelLoading ? 'Zoeken...' : 'Vind Duitse tankstations'}
+            </button>
+
+            {fuelError && <div className="text-xs text-red-600">{fuelError}</div>}
+
+            {fuelOptions.length > 0 && (
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {fuelOptions.slice(0, 8).map((option) => (
+                  <div key={option.id} className="rounded-lg border border-gray-200 bg-white p-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-gray-800 truncate">{option.name}</div>
+                        <div className="text-xs text-gray-500 truncate">{option.address}</div>
+                      </div>
+                      <div className="text-xs font-semibold text-emerald-700">{option.fuelPrice.toFixed(3)} /L</div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                      <span>Rit: {formatDistance(option.routeDistanceM)}</span>
+                      <span>Tijd: {formatDuration(option.routeDurationS)}</span>
+                      <span>Ritkosten: {formatEuro(option.driveCost)}</span>
+                      <span>Tankkosten: {formatEuro(option.fuelCost)}</span>
+                      <span className="font-semibold text-gray-800">Totaal: {formatEuro(option.totalCost)}</span>
+                      <span className={`font-semibold ${option.netSaving >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                        {option.netSaving >= 0 ? `Besparing ${formatEuro(option.netSaving)}` : `Meerprijs ${formatEuro(Math.abs(option.netSaving))}`}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => onSetRouteToFuelStation(option.lat, option.lng, option.name)}
+                      className="mt-2 w-full rounded border border-emerald-300 bg-emerald-50 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                    >
+                      Gebruik als bestemming
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Route voorkeuren */}
           <div>
