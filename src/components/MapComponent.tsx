@@ -255,6 +255,19 @@ export default function MapComponent({
       polylineRef.current = null;
     }
 
+    if (routeResult && routeResult.coordinates && routeResult.coordinates.length > 0) {
+      const coords = routeResult.coordinates.map(
+        (c: [number, number]) => [c[1], c[0]] as L.LatLngTuple
+      );
+      polylineRef.current = L.polyline(coords, {
+        color: '#f97316',
+        weight: 4,
+        opacity: 0.7,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }).addTo(map);
+    }
+
     if (waypoints.length > 1) {
       const bounds = L.latLngBounds(waypoints.map((wp) => [wp.lat, wp.lng] as L.LatLngTuple));
       map.fitBounds(bounds, { padding: [60, 60] });
