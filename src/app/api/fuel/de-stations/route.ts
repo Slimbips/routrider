@@ -325,21 +325,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ options: [] as GermanFuelOption[] });
     }
 
-    // Smart candidate selection: combine cheapest + closest stations to reduce routing API calls
-    const cheapest = [...filteredStations]
+    // Border-first candidate selection to avoid options far inside Germany.
+    const borderDistance = (s: TankerListStation) => haversineKm(nearestAnchor, s);
+
+    // Prefer stations close to the border anchor (roughly first 10-12 km in Germany).
+    const nearBorder = filteredStations
+      .filter((s) => borderDistance(s) <= 12)
+      .sort((a, b) => borderDistance(a) - borderDistance(b));
+
+    // Keep an explicit border-closest set so options stay near the border by default.
+    const borderClosest = [...filteredStations]
+      .sort((a, b) => borderDistance(a) - borderDistance(b))
+      .slice(0, 12);
+
+    // Within the border-near band, still favor cheaper prices.
+    const cheapestNearBorder = [...nearBorder]
       .sort((a, b) => (a.price ?? 999) - (b.price ?? 999))
       .slice(0, 8);
 
-    const closest = [...filteredStations]
+    // Include a few closest to the user's start for practical options.
+    const closestToStart = [...filteredStations]
       .sort((a, b) => haversineKm(start, a) - haversineKm(start, b))
-      .slice(0, 8);
+      .slice(0, 4);
 
     const candidateSet = new Map<string, TankerListStation>();
-    [...cheapest, ...closest].forEach((s) => {
+    [...borderClosest, ...cheapestNearBorder, ...closestToStart].forEach((s) => {
       if (!candidateSet.has(s.id)) candidateSet.set(s.id, s);
     });
 
-    const candidates = [...candidateSet.values()];
+    const candidates = [...candidateSet.values()].slice(0, 14);
 
     const nlFuelCost = litersToTank * nlPricePerLiter;
 
