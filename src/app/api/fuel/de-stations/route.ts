@@ -238,7 +238,7 @@ function stationAddress(s: TankerListStation): string {
 
 export async function POST(request: NextRequest) {
   const orsApiKey = process.env.ORS_API_KEY;
-  const tankerApiKey = process.env.TANKERKOENIG_API_KEY;
+  const tankerApiKey = (process.env.TANKERKOENIG_API_KEY ?? '').trim().replace(/^['\"]|['\"]$/g, '');
 
   if (!orsApiKey) {
     return NextResponse.json(
@@ -297,8 +297,8 @@ export async function POST(request: NextRequest) {
     if (useLivePricing) {
       try {
         [stationsNearAnchor, stationsNearStart] = await Promise.all([
-          fetchStationsAround(nearestAnchor.lat, nearestAnchor.lng, fuelType, tankerApiKey as string),
-          fetchStationsAround(start.lat, start.lng, fuelType, tankerApiKey as string).catch(() => []),
+          fetchStationsAround(nearestAnchor.lat, nearestAnchor.lng, fuelType, tankerApiKey),
+          fetchStationsAround(start.lat, start.lng, fuelType, tankerApiKey).catch(() => []),
         ]);
       } catch {
         // Invalid, disabled, or temporarily failing Tankerkonig keys should not break the planner.
