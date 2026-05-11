@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapComponent.css';
-import { Waypoint, RouteResult, PoiResult } from '@/lib/types';
+import { Waypoint, RouteResult, PoiResult, GermanFuelOption } from '@/lib/types';
 
 // Custom colored circle markers (avoids missing image issue with default Leaflet icons)
 function createMarkerIcon(color: string, label: string): L.DivIcon {
@@ -76,6 +76,10 @@ interface MapComponentProps {
   poiResults?: PoiResult[];
   /** Click handler for POI map markers */
   onPoiClick?: (poi: PoiResult) => void;
+  /** Fuel stations to show on map */
+  fuelOptions?: GermanFuelOption[];
+  /** Click handler for fuel station markers */
+  onSetRouteToFuelStation?: (lat: number, lng: number, name: string) => void;
 }
 
 export default function MapComponent({
@@ -88,18 +92,23 @@ export default function MapComponent({
   flyTo,
   poiResults = [],
   onPoiClick,
+  fuelOptions = [],
+  onSetRouteToFuelStation,
 }: MapComponentProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
   const poiMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+  const fuelMarkersRef = useRef<Map<string, L.Marker>>(new Map());
   const polylineRef = useRef<L.Polyline | null>(null);
 
   // Stable callback refs to avoid recreating map on every render
   const onMapClickRef = useRef(onMapClick);
   const onPoiClickRef = useRef(onPoiClick);
+  const onSetRouteToFuelStationRef = useRef(onSetRouteToFuelStation);
   useEffect(() => { onMapClickRef.current = onMapClick; }, [onMapClick]);
   useEffect(() => { onPoiClickRef.current = onPoiClick; }, [onPoiClick]);
+  useEffect(() => { onSetRouteToFuelStationRef.current = onSetRouteToFuelStation; }, [onSetRouteToFuelStation]);
 
   useEffect(() => { void onWaypointDrag; }, [onWaypointDrag]);
   useEffect(() => { void onWaypointRightClick; }, [onWaypointRightClick]);
@@ -244,6 +253,58 @@ export default function MapComponent({
       }
     });
   }, [poiResults]);
+
+  // --- Update fuel station markers when fuelOptions change ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const currentIds = new Set(fuelOptions.map((fuel) => fuel.id));
+
+    // Remove fuel markers no longer in results
+    fuelMarkersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        marker.remove();
+        fuelMarkersRef.current.delete(id);
+      }
+    });
+
+    // Add or update fuel markers
+    fuelOptions.forEach((fuel) => {
+      const existing = fuelMarkersRef.current.get(fuel.id);
+      if (existing) {
+        existing.setLatLng([fuel.lat, fuel.lng]);
+      } else {
+        const icon = createPoiIcon('fuel');
+        const marker = L.marker([fuel.lat, fuel.lng], {
+          icon,
+          interactive: true,
+          bubblingMouseEvents: false,
+        });
+
+        // Show fuel price and name on tooltip
+        const tooltipText = `${fuel.name}\n€${fuel.fuelPrice.toFixed(3)}/L`;
+        marker.bindTooltip(tooltipText, {
+          permanent: false,
+          direction: 'top',
+          interactive: false,
+        });
+
+        marker.addTo(map);
+        marker.setZIndexOffset(900); // Slightly behind POI but in front of base
+
+        // Add click handler to set route
+        const handleClick = (e: L.LeafletMouseEvent) => {
+          L.DomEvent.stopPropagation(e);
+          onSetRouteToFuelStationRef.current?.(fuel.lat, fuel.lng, fuel.name);
+        };
+
+        marker.on('click', handleClick);
+
+        fuelMarkersRef.current.set(fuel.id, marker);
+      }
+    });
+  }, [fuelOptions]);
 
   // --- Draw / update route polyline ---
   useEffect(() => {

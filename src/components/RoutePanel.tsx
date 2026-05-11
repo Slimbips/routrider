@@ -22,9 +22,11 @@ interface RoutePanelProps {
   poiResults?: PoiResult[];
   onPoiResultsChange?: (results: PoiResult[]) => void;
   onSetRouteToFuelStation: (lat: number, lng: number, name: string) => void;
+  fuelOptions?: GermanFuelOption[];
+  onFuelOptionsChange?: (options: GermanFuelOption[]) => void;
 }
 
-export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelStation }: RoutePanelProps) {
+export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelStation, fuelOptions = [], onFuelOptionsChange }: RoutePanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [fuelType, setFuelType] = useState<FuelType>('e10');
   const [consumptionKmPerL, setConsumptionKmPerL] = useState('15');
@@ -37,7 +39,6 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
   const [fuelPriceSource, setFuelPriceSource] = useState<'live' | 'estimated' | null>(null);
   const [fuelLoading, setFuelLoading] = useState(false);
   const [fuelError, setFuelError] = useState<string | null>(null);
-  const [fuelOptions, setFuelOptions] = useState<GermanFuelOption[]>([]);
 
   const formatEuro = (value: number) => `EUR ${value.toFixed(2)}`;
 
@@ -83,7 +84,7 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
 
       setFuelPriceSource((data.priceSource as 'live' | 'estimated' | undefined) ?? null);
       const options = (data.options ?? []) as GermanFuelOption[];
-      setFuelOptions(options);
+      onFuelOptionsChange?.(options);
       if (options.length === 0) setFuelError('Geen geschikte Duitse tankstations gevonden.');
     } catch (error) {
       setFuelError(error instanceof Error ? error.message : 'Onverwachte fout bij tankstation-zoekopdracht');

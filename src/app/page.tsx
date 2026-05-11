@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { Waypoint, RoutePreferences, RouteResult, PoiResult } from '@/lib/types';
+import { Waypoint, RoutePreferences, RouteResult, PoiResult, GermanFuelOption } from '@/lib/types';
 import { decodeSharePayload } from '@/lib/share';
 import RoutePanel from '@/components/RoutePanel';
 import Navbar from '@/components/Navbar';
@@ -41,6 +41,7 @@ function PlannerContent() {
   const [error, setError] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number } | null>(null);
   const [poiResults, setPoiResults] = useState<PoiResult[]>([]);
+  const [fuelOptions, setFuelOptions] = useState<GermanFuelOption[]>([]);
 
   // Load shared route for editing
   useEffect(() => {
@@ -270,6 +271,8 @@ function PlannerContent() {
         poiResults={poiResults}
         onPoiResultsChange={setPoiResults}
         onSetRouteToFuelStation={setRouteToFuelStation}
+        fuelOptions={fuelOptions}
+        onFuelOptionsChange={setFuelOptions}
       />
       <div className="flex-1 relative">
         <MapComponent
@@ -282,6 +285,8 @@ function PlannerContent() {
           flyTo={flyTo}
           poiResults={poiResults}
           onPoiClick={(poi) => addWaypoint(poi.lat, poi.lng, poi.name, 'poi', poi.category)}
+          fuelOptions={fuelOptions}
+          onSetRouteToFuelStation={setRouteToFuelStation}
         />
         {/* Hint overlay — disappears once waypoints are added */}
         {waypoints.length === 0 && (
