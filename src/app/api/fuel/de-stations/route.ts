@@ -322,8 +322,7 @@ export async function POST(request: NextRequest) {
       .filter((s) => !onlyOpen || s.isOpen === true);
 
     const candidates = filteredStations
-      .sort((a, b) => (a.price ?? 999) - (b.price ?? 999))
-      .slice(0, 8);
+      .sort((a, b) => (a.price ?? 999) - (b.price ?? 999));
 
     if (candidates.length === 0) {
       return NextResponse.json({ options: [] as GermanFuelOption[] });
