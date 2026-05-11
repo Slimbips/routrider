@@ -321,12 +321,25 @@ export async function POST(request: NextRequest) {
     const filteredStations = [...deduped.values()]
       .filter((s) => !onlyOpen || s.isOpen === true);
 
-    const candidates = filteredStations
-      .sort((a, b) => (a.price ?? 999) - (b.price ?? 999));
-
-    if (candidates.length === 0) {
+    if (filteredStations.length === 0) {
       return NextResponse.json({ options: [] as GermanFuelOption[] });
     }
+
+    // Smart candidate selection: combine cheapest + closest stations to reduce routing API calls
+    const cheapest = [...filteredStations]
+      .sort((a, b) => (a.price ?? 999) - (b.price ?? 999))
+      .slice(0, 8);
+
+    const closest = [...filteredStations]
+      .sort((a, b) => haversineKm(start, a) - haversineKm(start, b))
+      .slice(0, 8);
+
+    const candidateSet = new Map<string, TankerListStation>();
+    [...cheapest, ...closest].forEach((s) => {
+      if (!candidateSet.has(s.id)) candidateSet.set(s.id, s);
+    });
+
+    const candidates = [...candidateSet.values()];
 
     const nlFuelCost = litersToTank * nlPricePerLiter;
 
