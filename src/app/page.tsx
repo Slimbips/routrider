@@ -131,13 +131,12 @@ function PlannerContent() {
 
   // --- Route calculation ---
 
-  const handleCalculate = useCallback(async (overrideWaypoints?: Waypoint[]) => {
-    const pointsToUse = overrideWaypoints || waypoints;
-    if (pointsToUse.length < 2) return;
+  const handleCalculate = useCallback(async () => {
+    if (waypoints.length < 2) return;
     setIsCalculating(true);
     setError(null);
 
-    const coordinates = pointsToUse.map(
+    const coordinates = waypoints.map(
       (w) => [w.lng, w.lat] as [number, number]
     );
 
@@ -209,10 +208,8 @@ function PlannerContent() {
     setRouteResult(null);
     setError(null);
     setPoiResults([]);
-    
-    // Auto-calculate route immediately with the new waypoints
-    handleCalculate(newWaypoints);
-  }, [handleCalculate]);
+    pendingRecalcRef.current = true;
+  }, []);
 
   // Auto-recalculate when a waypoint is dragged (if route was already calculated)
   const handleWaypointDrag = useCallback(
@@ -223,7 +220,7 @@ function PlannerContent() {
     [updateWaypointPosition]
   );
 
-  // Fire after waypoints state update from a drag
+  // Fire after waypoints state update from a drag OR fuel station selection
   useEffect(() => {
     if (!pendingRecalcRef.current || waypoints.length < 2) return;
     pendingRecalcRef.current = false;
