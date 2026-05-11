@@ -129,35 +129,15 @@ function PlannerContent() {
     if (routeResultRef.current) pendingRecalcRef.current = true;
   }, []);
 
-  const setRouteToFuelStation = useCallback((lat: number, lng: number, name: string) => {
-    const start = waypointsRef.current[0];
-    if (!start) return;
-
-    setWaypoints([
-      start,
-      {
-        id: crypto.randomUUID(),
-        lat,
-        lng,
-        name,
-        type: 'poi',
-        poiCategory: 'fuel',
-      },
-    ]);
-    setRouteResult(null);
-    setError(null);
-    setPoiResults([]);
-    pendingRecalcRef.current = true;
-  }, []);
-
   // --- Route calculation ---
 
-  const handleCalculate = useCallback(async () => {
-    if (waypoints.length < 2) return;
+  const handleCalculate = useCallback(async (overrideWaypoints?: Waypoint[]) => {
+    const pointsToUse = overrideWaypoints || waypoints;
+    if (pointsToUse.length < 2) return;
     setIsCalculating(true);
     setError(null);
 
-    const coordinates = waypoints.map(
+    const coordinates = pointsToUse.map(
       (w) => [w.lng, w.lat] as [number, number]
     );
 
@@ -208,6 +188,31 @@ function PlannerContent() {
       setIsCalculating(false);
     }
   }, [waypoints, preferences]);
+
+  const setRouteToFuelStation = useCallback((lat: number, lng: number, name: string) => {
+    const start = waypointsRef.current[0];
+    if (!start) return;
+
+    const newWaypoints: Waypoint[] = [
+      start,
+      {
+        id: crypto.randomUUID(),
+        lat,
+        lng,
+        name,
+        type: 'poi',
+        poiCategory: 'fuel',
+      },
+    ];
+
+    setWaypoints(newWaypoints);
+    setRouteResult(null);
+    setError(null);
+    setPoiResults([]);
+    
+    // Auto-calculate route immediately with the new waypoints
+    handleCalculate(newWaypoints);
+  }, [handleCalculate]);
 
   // Auto-recalculate when a waypoint is dragged (if route was already calculated)
   const handleWaypointDrag = useCallback(
