@@ -302,7 +302,7 @@ function PlannerContent() {
               border border-gray-100
             "
           >
-            🖱️ Klik op de kaart voor je vertrekpunt of gebruik links de zoekbalk voor goedkope benzine in Duitsland
+            🖱️ Klik op de kaart voor je vertrekpunt of gebruik links de zoekbalk van SlimTanken
           </div>
         )}
       </div>

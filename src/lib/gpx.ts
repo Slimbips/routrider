@@ -22,7 +22,7 @@ export function formatDistance(meters: number): string {
 function gpxHeader(name: string): string {
   const now = new Date().toISOString();
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="RoutRider"
+<gpx version="1.1" creator="SlimTanken"
   xmlns="http://www.topografix.com/GPX/1/1"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">

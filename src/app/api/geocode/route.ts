@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'RoutRider/0.1 (motorcycle route planner)',
+      'User-Agent': 'SlimTanken/1.0 (fuel planner)',
       'Accept-Language': 'nl',
     },
     cache: 'no-store',

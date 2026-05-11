@@ -70,7 +70,7 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="bg-brand-500 text-white px-6 py-4 flex items-center gap-3 shadow">
         <span className="text-xl">🏍️</span>
-        <span className="font-bold text-lg tracking-wide flex-1">RoutRider</span>
+        <span className="font-bold text-lg tracking-wide flex-1">SlimTanken</span>
         <span className="text-sm text-white/80">{user?.name || user?.email}</span>
         <button onClick={handleLogout} className="text-sm text-white/70 hover:text-white ml-4 transition-colors">
           Uitloggen

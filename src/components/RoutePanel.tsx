@@ -123,7 +123,7 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
       <aside className={`absolute left-0 top-0 z-[900] flex h-full w-[340px] flex-col bg-white shadow-2xl transition-transform duration-300 ${isPanelOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 md:shadow-none md:border-r md:border-gray-100`}>
         <div className="flex items-center gap-2 bg-brand-500 px-4 py-3">
           <span className="text-xl">⛽</span>
-          <span className="text-lg font-bold tracking-wide text-white">Goedkope Benzine</span>
+          <span className="text-lg font-bold tracking-wide text-white">SlimTanken</span>
           <button
             onClick={() => setIsPanelOpen(false)}
             className="ml-auto text-white/70 hover:text-white md:hidden"

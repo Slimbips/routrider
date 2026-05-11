@@ -202,7 +202,7 @@ async function fetchStationsAroundNominatim(lat: number, lng: number): Promise<T
   const response = await fetch(url.toString(), {
     method: 'GET',
     headers: {
-      'User-Agent': 'routrider-fuel-planner/1.0',
+      'User-Agent': 'SlimTanken-fuel-planner/1.0',
       'Accept-Language': 'nl,en;q=0.8',
     },
     signal: AbortSignal.timeout(12000),

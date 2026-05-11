@@ -39,7 +39,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8">
         <div className="flex items-center gap-2 mb-6">
           <span className="text-2xl">🏍️</span>
-          <span className="text-xl font-bold text-brand-600">RoutRider</span>
+          <span className="text-xl font-bold text-brand-600">SlimTanken</span>
         </div>
         <h1 className="text-lg font-semibold text-gray-800 mb-6">Account aanmaken</h1>
 

@@ -2,10 +2,10 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Goedkope Benzine Duitsland',
+  title: 'SlimTanken',
   description:
-    'Vind goedkope Duitse tankstations vanaf je vertrekpunt en vergelijk ritkosten, literprijzen en totale besparing.',
-  keywords: ['goedkope benzine', 'duitse tankstations', 'tankplanner duitsland', 'benzineprijs', 'tankkosten'],
+    'SlimTanken helpt je goedkope Duitse tankstations te vinden en ritkosten, literprijzen en totale besparing te vergelijken.',
+  keywords: ['slimtanken', 'goedkope benzine', 'duitse tankstations', 'tankplanner duitsland', 'tankkosten'],
 };
 
 export default function RootLayout({
