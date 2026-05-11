@@ -199,16 +199,25 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
             )}
 
             {selectedFuelOption && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs">
-                <div className="font-semibold text-emerald-800">Geselecteerd station</div>
-                <div className="mt-1 text-emerald-900">{selectedFuelOption.name}</div>
-                <div className="text-emerald-700">{selectedFuelOption.fuelPrice.toFixed(3)} /L</div>
+              <div className={`rounded-lg border p-3 text-xs ${selectedFuelOption.netSaving >= 0 ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
+                <div className={`font-semibold ${selectedFuelOption.netSaving >= 0 ? 'text-emerald-800' : 'text-red-800'}`}>
+                  {selectedFuelOption.netSaving >= 0 ? '✅ Voordelig om naar Duitsland te rijden' : '❌ Niet voordelig om naar Duitsland te rijden'}
+                </div>
+                <div className="mt-1 text-gray-800">
+                  {selectedFuelOption.netSaving >= 0
+                    ? `Tanken in Duitsland bespaart je naar verwachting ${formatEuro(selectedFuelOption.netSaving)} ten opzichte van tanken in Nederland.`
+                    : `Tanken in Duitsland kost je naar verwachting ${formatEuro(Math.abs(selectedFuelOption.netSaving))} meer dan tanken in Nederland.`}
+                </div>
+                <div className="mt-2 text-gray-700">Station: {selectedFuelOption.name} ({selectedFuelOption.fuelPrice.toFixed(3)} /L)</div>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-gray-700">
+                  <span>Tankkosten Duitsland: {formatEuro(selectedFuelOption.fuelCost)}</span>
                   <span>Ritkosten: {formatEuro(selectedFuelOption.driveCost)}</span>
-                  <span>Totaal: {formatEuro(selectedFuelOption.totalCost)}</span>
-                  <span>Tankkosten NL: {formatEuro(selectedFuelOption.nlFuelCost)}</span>
-                  <span className={`font-semibold ${selectedFuelOption.netSaving >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                    {selectedFuelOption.netSaving >= 0 ? `Besparing ${formatEuro(selectedFuelOption.netSaving)}` : `Meerprijs ${formatEuro(Math.abs(selectedFuelOption.netSaving))}`}
+                  <span className="font-semibold">Totaal Duitsland: {formatEuro(selectedFuelOption.totalCost)}</span>
+                  <span>Tankkosten Nederland: {formatEuro(selectedFuelOption.nlFuelCost)}</span>
+                  <span className={`font-semibold ${selectedFuelOption.netSaving >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {selectedFuelOption.netSaving >= 0
+                      ? `Netto voordeel: ${formatEuro(selectedFuelOption.netSaving)}`
+                      : `Netto nadeel: ${formatEuro(Math.abs(selectedFuelOption.netSaving))}`}
                   </span>
                 </div>
               </div>
@@ -232,7 +241,7 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
                       <span>Tankkosten: {formatEuro(option.fuelCost)}</span>
                       <span className="font-semibold text-gray-800">Totaal: {formatEuro(option.totalCost)}</span>
                       <span className={`font-semibold ${option.netSaving >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                        {option.netSaving >= 0 ? `Besparing ${formatEuro(option.netSaving)}` : `Meerprijs ${formatEuro(Math.abs(option.netSaving))}`}
+                        {option.netSaving >= 0 ? `Netto voordeel ${formatEuro(option.netSaving)}` : `Netto nadeel ${formatEuro(Math.abs(option.netSaving))}`}
                       </span>
                       <span className="text-gray-500">NL tankkosten: {formatEuro(option.nlFuelCost)}</span>
                       <span className={`font-medium ${option.isOpen ? 'text-emerald-700' : 'text-amber-600'}`}>
