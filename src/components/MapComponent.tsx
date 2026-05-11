@@ -79,7 +79,7 @@ interface MapComponentProps {
   /** Fuel stations to show on map */
   fuelOptions?: GermanFuelOption[];
   /** Click handler for fuel station markers */
-  onSetRouteToFuelStation?: (lat: number, lng: number, name: string) => void;
+  onSetRouteToFuelStation?: (lat: number, lng: number, name: string, option?: GermanFuelOption) => void;
 }
 
 export default function MapComponent({
@@ -296,7 +296,7 @@ export default function MapComponent({
         // Add click handler to set route
         const handleClick = (e: L.LeafletMouseEvent) => {
           L.DomEvent.stopPropagation(e);
-          onSetRouteToFuelStationRef.current?.(fuel.lat, fuel.lng, fuel.name);
+          onSetRouteToFuelStationRef.current?.(fuel.lat, fuel.lng, fuel.name, fuel);
         };
 
         marker.on('click', handleClick);

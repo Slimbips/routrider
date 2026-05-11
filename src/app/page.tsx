@@ -42,6 +42,7 @@ function PlannerContent() {
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number } | null>(null);
   const [poiResults, setPoiResults] = useState<PoiResult[]>([]);
   const [fuelOptions, setFuelOptions] = useState<GermanFuelOption[]>([]);
+  const [selectedFuelOption, setSelectedFuelOption] = useState<GermanFuelOption | null>(null);
 
   // Load shared route for editing
   useEffect(() => {
@@ -189,7 +190,7 @@ function PlannerContent() {
     }
   }, [waypoints, preferences]);
 
-  const setRouteToFuelStation = useCallback((lat: number, lng: number, name: string) => {
+  const setRouteToFuelStation = useCallback((lat: number, lng: number, name: string, option?: GermanFuelOption) => {
     const start = waypointsRef.current[0];
     if (!start) return;
 
@@ -209,6 +210,7 @@ function PlannerContent() {
     setRouteResult(null);
     setError(null);
     setPoiResults([]);
+    if (option) setSelectedFuelOption(option);
     pendingRecalcRef.current = true;
   }, []);
 
@@ -233,6 +235,7 @@ function PlannerContent() {
     setRouteResult(null);
     setError(null);
     setPoiResults([]);
+    setSelectedFuelOption(null);
   }, []);
 
   const handleRouteDrag = useCallback(
@@ -273,6 +276,7 @@ function PlannerContent() {
         onSetRouteToFuelStation={setRouteToFuelStation}
         fuelOptions={fuelOptions}
         onFuelOptionsChange={setFuelOptions}
+        selectedFuelOption={selectedFuelOption}
       />
       <div className="flex-1 relative">
         <MapComponent

@@ -21,12 +21,13 @@ interface RoutePanelProps {
   dbRouteId?: string | null;
   poiResults?: PoiResult[];
   onPoiResultsChange?: (results: PoiResult[]) => void;
-  onSetRouteToFuelStation: (lat: number, lng: number, name: string) => void;
+  onSetRouteToFuelStation: (lat: number, lng: number, name: string, option?: GermanFuelOption) => void;
   fuelOptions?: GermanFuelOption[];
   onFuelOptionsChange?: (options: GermanFuelOption[]) => void;
+  selectedFuelOption?: GermanFuelOption | null;
 }
 
-export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelStation, fuelOptions = [], onFuelOptionsChange }: RoutePanelProps) {
+export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelStation, fuelOptions = [], onFuelOptionsChange, selectedFuelOption = null }: RoutePanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [fuelType, setFuelType] = useState<FuelType>('e10');
   const [consumptionKmPerL, setConsumptionKmPerL] = useState('15');
@@ -197,6 +198,22 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
               </div>
             )}
 
+            {selectedFuelOption && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs">
+                <div className="font-semibold text-emerald-800">Geselecteerd station</div>
+                <div className="mt-1 text-emerald-900">{selectedFuelOption.name}</div>
+                <div className="text-emerald-700">{selectedFuelOption.fuelPrice.toFixed(3)} /L</div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-gray-700">
+                  <span>Ritkosten: {formatEuro(selectedFuelOption.driveCost)}</span>
+                  <span>Totaal: {formatEuro(selectedFuelOption.totalCost)}</span>
+                  <span>Tankkosten NL: {formatEuro(selectedFuelOption.nlFuelCost)}</span>
+                  <span className={`font-semibold ${selectedFuelOption.netSaving >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    {selectedFuelOption.netSaving >= 0 ? `Besparing ${formatEuro(selectedFuelOption.netSaving)}` : `Meerprijs ${formatEuro(Math.abs(selectedFuelOption.netSaving))}`}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {fuelOptions.length > 0 && (
               <div className="space-y-2 max-h-56 overflow-y-auto">
                 {fuelOptions.map((option) => (
@@ -222,7 +239,7 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
                         {option.isOpen ? 'Nu open' : 'Nu gesloten'}
                       </span>
                     </div>
-                    <button onClick={() => onSetRouteToFuelStation(option.lat, option.lng, option.name)} className="mt-2 w-full rounded border border-emerald-300 bg-emerald-50 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                    <button onClick={() => onSetRouteToFuelStation(option.lat, option.lng, option.name, option)} className="mt-2 w-full rounded border border-emerald-300 bg-emerald-50 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
                       Gebruik als bestemming
                     </button>
                   </div>
