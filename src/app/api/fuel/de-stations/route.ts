@@ -70,6 +70,7 @@ const BORDER_ANCHORS = [
   { lat: 51.8386, lng: 6.2426, name: 'Emmerich am Rhein (DE grens)' },
   { lat: 51.9496, lng: 7.0071, name: 'Gronau (DE grens)' },
   { lat: 52.3135, lng: 7.1579, name: 'Nordhorn (DE grens)' },
+  { lat: 53.1818, lng: 7.2772, name: 'Bunde (DE grens)' },
   { lat: 53.2468, lng: 7.4619, name: 'Leer (DE grens)' },
 ];
 
@@ -328,15 +329,15 @@ export async function POST(request: NextRequest) {
     // Border-first candidate selection to avoid options far inside Germany.
     const borderDistance = (s: TankerListStation) => haversineKm(nearestAnchor, s);
 
-    // Prefer stations close to the border anchor (roughly first 10-12 km in Germany).
+    // Prefer stations close to the border anchor (roughly first ~18 km in Germany).
     const nearBorder = filteredStations
-      .filter((s) => borderDistance(s) <= 12)
+      .filter((s) => borderDistance(s) <= 18)
       .sort((a, b) => borderDistance(a) - borderDistance(b));
 
     // Keep an explicit border-closest set so options stay near the border by default.
     const borderClosest = [...filteredStations]
       .sort((a, b) => borderDistance(a) - borderDistance(b))
-      .slice(0, 12);
+      .slice(0, 16);
 
     // Within the border-near band, still favor cheaper prices.
     const cheapestNearBorder = [...nearBorder]
@@ -353,7 +354,7 @@ export async function POST(request: NextRequest) {
       if (!candidateSet.has(s.id)) candidateSet.set(s.id, s);
     });
 
-    const candidates = [...candidateSet.values()].slice(0, 14);
+    const candidates = [...candidateSet.values()].slice(0, 16);
 
     const nlFuelCost = litersToTank * nlPricePerLiter;
 
