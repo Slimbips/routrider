@@ -199,7 +199,7 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
 
             {fuelOptions.length > 0 && (
               <div className="space-y-2 max-h-56 overflow-y-auto">
-                {fuelOptions.slice(0, 8).map((option) => (
+                {fuelOptions.map((option) => (
                   <div key={option.id} className="rounded-lg border border-gray-200 bg-white p-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
