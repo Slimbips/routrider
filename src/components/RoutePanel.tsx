@@ -36,6 +36,7 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
   const [deEstimatedPricePerLiter, setDeEstimatedPricePerLiter] = useState('1.78');
   const [fuelOnlyOpen, setFuelOnlyOpen] = useState(true);
   const [includeReturnTrip, setIncludeReturnTrip] = useState(true);
+  const [maxBorderDistanceKm, setMaxBorderDistanceKm] = useState('20');
   const [fuelSortBy, setFuelSortBy] = useState<'saving' | 'total' | 'distance' | 'fuelPrice'>('saving');
   const [fuelPriceSource, setFuelPriceSource] = useState<'live' | 'estimated' | null>(null);
   const [fuelLoading, setFuelLoading] = useState(false);
@@ -65,11 +66,13 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
     const liters = Number(litersToTank);
     const nlPrice = Number(nlPricePerLiter);
     const deEstimate = Number(deEstimatedPricePerLiter);
+    const borderDistanceLimit = Number(maxBorderDistanceKm);
 
     if (!Number.isFinite(consumption) || consumption <= 0) return setFuelError('Verbruik moet groter zijn dan 0.');
     if (!Number.isFinite(liters) || liters <= 0) return setFuelError('Aantal liters moet groter zijn dan 0.');
     if (!Number.isFinite(nlPrice) || nlPrice <= 0) return setFuelError('NL prijs per liter moet groter zijn dan 0.');
     if (!Number.isFinite(deEstimate) || deEstimate <= 0) return setFuelError('Geschatte DE prijs per liter moet groter zijn dan 0.');
+    if (!Number.isFinite(borderDistanceLimit) || borderDistanceLimit < 5) return setFuelError('Max afstand over de grens moet minstens 5 km zijn.');
 
     const start = waypoints[0];
 
@@ -86,6 +89,7 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
           litersToTank: liters,
           nlPricePerLiter: nlPrice,
           deEstimatedPricePerLiter: deEstimate,
+          maxBorderDistanceKm: borderDistanceLimit,
           onlyOpen: fuelOnlyOpen,
           includeReturnTrip,
           sortBy: fuelSortBy,
@@ -184,6 +188,15 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
                   <option value="total">Laagste totaalprijs</option>
                   <option value="distance">Kortste rit</option>
                   <option value="fuelPrice">Goedkoopste literprijs</option>
+                </select>
+              </label>
+              <label className="text-xs text-gray-600">
+                Max over grens
+                <select value={maxBorderDistanceKm} onChange={(e) => setMaxBorderDistanceKm(e.target.value)} className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white">
+                  <option value="12">12 km</option>
+                  <option value="20">20 km (standaard)</option>
+                  <option value="30">30 km</option>
+                  <option value="40">40 km</option>
                 </select>
               </label>
               <div className="space-y-1 pt-5">

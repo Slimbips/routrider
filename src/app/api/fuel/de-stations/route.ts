@@ -31,6 +31,7 @@ type RequestBody = {
   litersToTank: number;
   nlPricePerLiter: number;
   deEstimatedPricePerLiter?: number;
+  maxBorderDistanceKm?: number;
   onlyOpen?: boolean;
   includeReturnTrip?: boolean;
   sortBy?: 'saving' | 'total' | 'distance' | 'fuelPrice';
@@ -262,6 +263,7 @@ export async function POST(request: NextRequest) {
     litersToTank,
     nlPricePerLiter,
     deEstimatedPricePerLiter,
+    maxBorderDistanceKm = 20,
     onlyOpen = false,
     includeReturnTrip = false,
     sortBy = 'saving',
@@ -284,6 +286,9 @@ export async function POST(request: NextRequest) {
   }
   if (deEstimatedPricePerLiter !== undefined && (!Number.isFinite(deEstimatedPricePerLiter) || deEstimatedPricePerLiter <= 0)) {
     return NextResponse.json({ error: 'Geschatte DE literprijs moet groter zijn dan 0.' }, { status: 400 });
+  }
+  if (!Number.isFinite(maxBorderDistanceKm) || maxBorderDistanceKm < 5 || maxBorderDistanceKm > 80) {
+    return NextResponse.json({ error: 'Max afstand over de grens moet tussen 5 en 80 km liggen.' }, { status: 400 });
   }
 
   try {
@@ -329,9 +334,9 @@ export async function POST(request: NextRequest) {
     // Border-first candidate selection to avoid options far inside Germany.
     const borderDistance = (s: TankerListStation) => haversineKm(nearestAnchor, s);
 
-    // Prefer stations close to the border anchor (roughly first ~18 km in Germany).
+    // Prefer stations close to the border anchor based on user-selected max depth over the border.
     const nearBorder = filteredStations
-      .filter((s) => borderDistance(s) <= 18)
+      .filter((s) => borderDistance(s) <= maxBorderDistanceKm)
       .sort((a, b) => borderDistance(a) - borderDistance(b));
 
     // Keep an explicit border-closest set so options stay near the border by default.
