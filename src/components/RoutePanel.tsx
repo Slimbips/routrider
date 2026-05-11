@@ -43,6 +43,18 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
 
   const formatEuro = (value: number) => `EUR ${value.toFixed(2)}`;
 
+  const openGoogleMapsNavigation = (destinationLat: number, destinationLng: number) => {
+    const start = waypoints[0];
+    const url = new URL('https://www.google.com/maps/dir/');
+    url.searchParams.set('api', '1');
+    url.searchParams.set('destination', `${destinationLat},${destinationLng}`);
+    url.searchParams.set('travelmode', 'driving');
+    if (start) {
+      url.searchParams.set('origin', `${start.lat},${start.lng}`);
+    }
+    window.open(url.toString(), '_blank', 'noopener,noreferrer');
+  };
+
   const handleSearchGermanFuel = async () => {
     if (waypoints.length < 1) {
       setFuelError('Zet eerst een vertrekpunt neer.');
@@ -220,6 +232,12 @@ export default function RoutePanel({ waypoints, onAddWaypoint, onSetRouteToFuelS
                       : `Netto nadeel: ${formatEuro(Math.abs(selectedFuelOption.netSaving))}`}
                   </span>
                 </div>
+                <button
+                  onClick={() => openGoogleMapsNavigation(selectedFuelOption.lat, selectedFuelOption.lng)}
+                  className="mt-3 w-full rounded border border-blue-300 bg-blue-50 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                >
+                  Open navigatie in Google Maps
+                </button>
               </div>
             )}
 
